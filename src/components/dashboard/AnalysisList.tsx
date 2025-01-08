@@ -3,6 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import type { Database } from "@/integrations/supabase/types";
+
+type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
 export const AnalysisList = () => {
   const { toast } = useToast();
@@ -10,13 +13,17 @@ export const AnalysisList = () => {
   const { data: analyses, isLoading } = useQuery({
     queryKey: ['analyses'],
     queryFn: async () => {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error("User not authenticated");
+
       const { data, error } = await supabase
         .from('song_analysis')
         .select('*')
+        .eq('user_id', user.user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data as Analysis[];
     }
   });
 

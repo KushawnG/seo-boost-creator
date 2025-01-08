@@ -33,6 +33,48 @@ export type Database = {
         }
         Relationships: []
       }
+      song_analysis: {
+        Row: {
+          bpm: number | null
+          chords: string[] | null
+          created_at: string
+          file_path: string | null
+          id: string
+          key: string | null
+          status: string | null
+          title: string | null
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          bpm?: number | null
+          chords?: string[] | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          key?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          bpm?: number | null
+          chords?: string[] | null
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          key?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

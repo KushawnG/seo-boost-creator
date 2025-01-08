@@ -13,13 +13,17 @@ export const AnalysisForm = () => {
     try {
       setIsLoading(true);
 
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error("User not authenticated");
+
       // Create analysis record
       const { data: analysis, error: insertError } = await supabase
         .from('song_analysis')
         .insert({
           url,
           title: url.split('/').pop() || 'Unknown',
-          status: 'pending'
+          status: 'pending',
+          user_id: user.user.id
         })
         .select()
         .single();
@@ -56,8 +60,11 @@ export const AnalysisForm = () => {
       const file = event.target.files?.[0];
       if (!file) return;
 
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error("User not authenticated");
+
       // Upload file to storage
-      const filePath = `${await supabase.auth.getUser().then(res => res.data.user?.id)}/${crypto.randomUUID()}-${file.name}`;
+      const filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('audio_files')
         .upload(filePath, file);
@@ -70,7 +77,8 @@ export const AnalysisForm = () => {
         .insert({
           file_path: filePath,
           title: file.name,
-          status: 'pending'
+          status: 'pending',
+          user_id: user.user.id
         })
         .select()
         .single();
