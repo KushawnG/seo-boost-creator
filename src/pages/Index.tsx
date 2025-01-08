@@ -19,17 +19,17 @@ const Index = () => {
             <Card className="p-6">
               <Music className="h-12 w-12 text-primary mb-4" />
               <h3 className="text-xl font-semibold mb-2">Accurate Detection</h3>
-              <p className="text-gray-600">Advanced AI algorithms for precise chord recognition</p>
+              <p className="text-gray-600">Advanced AI algorithms for precise chord recognition, key detection, and BPM analysis</p>
             </Card>
             <Card className="p-6">
               <Zap className="h-12 w-12 text-primary mb-4" />
               <h3 className="text-xl font-semibold mb-2">Lightning Fast</h3>
-              <p className="text-gray-600">Get results in seconds, not minutes</p>
+              <p className="text-gray-600">Real-time analysis with results in seconds, not minutes</p>
             </Card>
             <Card className="p-6">
               <Clock className="h-12 w-12 text-primary mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Real-Time Analysis</h3>
-              <p className="text-gray-600">Instant feedback as you play or upload</p>
+              <h3 className="text-xl font-semibold mb-2">Advanced Stem Splitting</h3>
+              <p className="text-gray-600">Isolate individual instruments and vocals for detailed analysis</p>
             </Card>
             <Card className="p-6">
               <Lock className="h-12 w-12 text-primary mb-4" />
