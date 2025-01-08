@@ -34,7 +34,7 @@ export const Navigation = () => {
           <div className="flex-1 flex items-center">
             <Link to="/" className="flex items-center space-x-2">
               <img 
-                src="/Chord-Finder-Ai-Logo-Icon-Only.png" 
+                src="Chord-Finder-Ai-Logo-Icon-Only.png" 
                 alt="Chord Finder AI" 
                 className="h-8 w-8"
               />
