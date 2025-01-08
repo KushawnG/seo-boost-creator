@@ -33,28 +33,19 @@ export const AnalysisForm = () => {
       if (insertError) throw insertError;
 
       // Call the analyze-song function
-      const response = await fetch(
-        `${process.env.SUPABASE_URL}/functions/v1/analyze-song`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ url }),
-        }
-      );
+      const { data, error: analysisError } = await supabase.functions.invoke('analyze-song', {
+        body: { url }
+      });
 
-      if (!response.ok) throw new Error('Analysis failed');
-      const result = await response.json();
+      if (analysisError) throw analysisError;
 
       // Update the analysis record with results
       const { error: updateError } = await supabase
         .from('song_analysis')
         .update({
-          key: result.key,
-          bpm: result.bpm,
-          chords: result.chords,
+          key: data.key,
+          bpm: data.bpm,
+          chords: data.chords,
           status: 'completed'
         })
         .eq('id', analysis.id);
@@ -110,28 +101,19 @@ export const AnalysisForm = () => {
       if (insertError) throw insertError;
 
       // Call the analyze-song function
-      const response = await fetch(
-        `${process.env.SUPABASE_URL}/functions/v1/analyze-song`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ filePath }),
-        }
-      );
+      const { data, error: analysisError } = await supabase.functions.invoke('analyze-song', {
+        body: { filePath }
+      });
 
-      if (!response.ok) throw new Error('Analysis failed');
-      const result = await response.json();
+      if (analysisError) throw analysisError;
 
       // Update the analysis record with results
       const { error: updateError } = await supabase
         .from('song_analysis')
         .update({
-          key: result.key,
-          bpm: result.bpm,
-          chords: result.chords,
+          key: data.key,
+          bpm: data.bpm,
+          chords: data.chords,
           status: 'completed'
         })
         .eq('id', analysis.id);
