@@ -1,15 +1,37 @@
 import { Button } from "@/components/ui/button";
 import { Music } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 
 export const Navigation = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+    };
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/auth");
+    navigate("/");
   };
+
+  // Don't show navigation on dashboard
+  if (location.pathname === "/dashboard") {
+    return null;
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-b z-50">
@@ -22,22 +44,21 @@ export const Navigation = () => {
             </Link>
           </div>
           
-          <div className="hidden md:flex items-center space-x-4">
-            <Link to="/" className="text-gray-700 hover:text-gray-900 px-3 py-2">
-              Home
-            </Link>
-            <Link to="/about" className="text-gray-700 hover:text-gray-900 px-3 py-2">
-              About
-            </Link>
-            <Link to="/pricing" className="text-gray-700 hover:text-gray-900 px-3 py-2">
-              Pricing
-            </Link>
-          </div>
-
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" onClick={handleLogout}>
-              Log Out
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard">
+                  <Button variant="ghost">Dashboard</Button>
+                </Link>
+                <Button variant="ghost" onClick={handleLogout}>
+                  Log Out
+                </Button>
+              </>
+            ) : (
+              <Link to="/auth">
+                <Button>Sign In</Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
