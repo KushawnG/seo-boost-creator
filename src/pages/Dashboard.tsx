@@ -146,7 +146,12 @@ const Dashboard = () => {
             <h1 className="text-2xl font-bold">Dashboard</h1>
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
               <div className="text-sm md:text-base">Credits: <span className="font-semibold">5</span> Remaining</div>
-              <Button className="w-full md:w-auto">Free Plan</Button>
+              <Button 
+                onClick={() => setActiveTab("membership")}
+                className="w-full md:w-auto"
+              >
+                Free Plan
+              </Button>
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Database } from "@/integrations/supabase/types";
 import {
   Table,
@@ -11,6 +11,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Trash2 } from "lucide-react";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -20,6 +22,7 @@ interface AnalysisListProps {
 
 export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: analyses, isLoading } = useQuery({
     queryKey: ['analyses', { showAll }],
@@ -44,6 +47,33 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
     }
   });
 
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('song_analysis')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Analysis deleted successfully",
+      });
+
+      // Invalidate the queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['analyses'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-analyses'] });
+    } catch (error) {
+      console.error('Error deleting analysis:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete analysis",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return <div>Loading analyses...</div>;
   }
@@ -61,6 +91,7 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
           <TableHead>BPM</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Created At</TableHead>
+          <TableHead className="w-[100px]">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -76,6 +107,16 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
             </TableCell>
             <TableCell>
               {new Date(analysis.created_at).toLocaleDateString()}
+            </TableCell>
+            <TableCell>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDelete(analysis.id)}
+                className="h-8 w-8"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </TableCell>
           </TableRow>
         ))}
