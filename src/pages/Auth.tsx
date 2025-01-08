@@ -14,13 +14,13 @@ const AuthPage = () => {
     // Check if user is already logged in
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate("/");
+        navigate("/dashboard");
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_IN" && session) {
-        navigate("/");
+      if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session) {
+        navigate("/dashboard");
       }
       if (event === "USER_UPDATED") {
         const { error } = await supabase.auth.getSession();
