@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import { Info, DollarSign } from "lucide-react";
 
 export const Navigation = () => {
   const navigate = useNavigate();
@@ -38,12 +37,10 @@ export const Navigation = () => {
               <span className="text-xl font-bold">Chord Finder AI</span>
             </Link>
             <div className="hidden md:flex space-x-4">
-              <a href="#about" className="flex items-center text-gray-600 hover:text-gray-900">
-                <Info className="h-4 w-4 mr-1" />
+              <a href="#about" className="text-gray-600 hover:text-gray-900">
                 About
               </a>
-              <a href="#pricing" className="flex items-center text-gray-600 hover:text-gray-900">
-                <DollarSign className="h-4 w-4 mr-1" />
+              <a href="#pricing" className="text-gray-600 hover:text-gray-900">
                 Pricing
               </a>
             </div>
