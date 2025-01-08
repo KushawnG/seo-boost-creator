@@ -69,6 +69,9 @@ const Index = () => {
                   <Clock className="h-5 w-5 text-primary mr-2" />
                   <span>BPM Detection</span>
                 </li>
+                <li className="flex items-center text-gray-500">
+                  <span>Renews monthly for free</span>
+                </li>
               </ul>
               <Link to="/auth">
                 <Button className="w-full">Get Started</Button>
@@ -99,9 +102,12 @@ const Index = () => {
                   <Clock className="h-5 w-5 text-primary mr-2" />
                   <span>BPM Detection</span>
                 </li>
+                <li className="flex items-center text-gray-500">
+                  <span>Cancel or change plan anytime</span>
+                </li>
               </ul>
               <Link to="/auth">
-                <Button className="w-full">Start Pro Trial</Button>
+                <Button className="w-full">Subscribe to Pro</Button>
               </Link>
             </Card>
             
@@ -133,9 +139,12 @@ const Index = () => {
                   <Lock className="h-5 w-5 text-primary mr-2" />
                   <span>Stem Splitter</span>
                 </li>
+                <li className="flex items-center text-gray-500">
+                  <span>Cancel or change plan anytime</span>
+                </li>
               </ul>
               <Link to="/auth">
-                <Button variant="outline" className="w-full">Get Premium</Button>
+                <Button variant="outline" className="w-full">Subscribe to Premium</Button>
               </Link>
             </Card>
           </div>

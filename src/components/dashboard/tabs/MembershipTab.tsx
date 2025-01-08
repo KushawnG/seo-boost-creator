@@ -110,6 +110,9 @@ export const MembershipTab = () => {
                         <Zap className="h-4 w-4 text-primary mr-2" />
                         Basic features
                       </li>
+                      <li className="text-sm text-gray-500">
+                        Renews monthly for free
+                      </li>
                     </ul>
                     <Button 
                       className="w-full" 
@@ -137,13 +140,16 @@ export const MembershipTab = () => {
                         <Zap className="h-4 w-4 text-primary mr-2" />
                         All basic features
                       </li>
+                      <li className="text-sm text-gray-500">
+                        Cancel anytime
+                      </li>
                     </ul>
                     <Button 
                       className="w-full" 
                       disabled={subscription?.plan_type === 'pro' || isLoading}
                       onClick={() => handleUpgrade('price_pro')}
                     >
-                      {subscription?.plan_type === 'pro' ? 'Current Plan' : 'Upgrade'}
+                      {subscription?.plan_type === 'pro' ? 'Current Plan' : 'Upgrade to Pro'}
                     </Button>
                   </CardContent>
                 </Card>
@@ -165,13 +171,16 @@ export const MembershipTab = () => {
                         <Lock className="h-4 w-4 text-primary mr-2" />
                         Stem Splitter
                       </li>
+                      <li className="text-sm text-gray-500">
+                        Cancel anytime
+                      </li>
                     </ul>
                     <Button 
                       className="w-full"
                       disabled={subscription?.plan_type === 'premium' || isLoading}
                       onClick={() => handleUpgrade('price_premium')}
                     >
-                      {subscription?.plan_type === 'premium' ? 'Current Plan' : 'Upgrade'}
+                      {subscription?.plan_type === 'premium' ? 'Current Plan' : 'Upgrade to Premium'}
                     </Button>
                   </CardContent>
                 </Card>
