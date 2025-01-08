@@ -94,9 +94,40 @@ export const MembershipTab = () => {
     }
   };
 
+  const handleDowngrade = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+
+      const { error } = await response.json();
+      if (error) throw new Error(error);
+
+      toast({
+        title: "Success",
+        description: "Your subscription will be downgraded to the Free plan at the end of your billing period.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to downgrade subscription. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const creditsUsed = subscription ? (subscription.credits_total - subscription.credits_remaining) : 0;
   const creditsTotal = subscription?.credits_total || 5;
   const creditsPercent = (creditsUsed / creditsTotal) * 100;
+  const currentPlanType = subscription?.plan_type || 'free';
+  const isPaidPlan = currentPlanType === 'pro' || currentPlanType === 'premium';
 
   return (
     <div className="space-y-6">
@@ -115,15 +146,21 @@ export const MembershipTab = () => {
             <div>
               <h3 className="text-lg font-semibold mb-4">Available Plans</h3>
               <div className="grid gap-4 sm:grid-cols-3">
-                {Object.values(PLANS).map((plan) => (
-                  <PlanCard
-                    key={plan.priceId}
-                    {...plan}
-                    isCurrentPlan={subscription?.plan_type === plan.title.toLowerCase().split(' ')[0]}
-                    isLoading={isLoading}
-                    onUpgrade={handleUpgrade}
-                  />
-                ))}
+                {Object.values(PLANS).map((plan) => {
+                  const isCurrentPlan = currentPlanType === plan.title.toLowerCase().split(' ')[0];
+                  const showDowngrade = isPaidPlan && plan.title === "Free Plan";
+                  
+                  return (
+                    <PlanCard
+                      key={plan.priceId}
+                      {...plan}
+                      isCurrentPlan={isCurrentPlan}
+                      isLoading={isLoading}
+                      onUpgrade={showDowngrade ? handleDowngrade : handleUpgrade}
+                      buttonText={showDowngrade ? "Downgrade to Free" : isCurrentPlan ? "Current Plan" : `Upgrade to ${plan.title}`}
+                    />
+                  );
+                })}
               </div>
             </div>
           </div>

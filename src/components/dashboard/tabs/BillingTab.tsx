@@ -81,6 +81,34 @@ export const BillingTab = () => {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    try {
+      const response = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+      });
+
+      const { error } = await response.json();
+      if (error) throw new Error(error);
+
+      toast({
+        title: "Success",
+        description: "Your subscription has been cancelled. You will be downgraded to the Free plan at the end of your billing period.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to cancel subscription. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const isPaidPlan = subscription?.plan_type === 'pro' || subscription?.plan_type === 'premium';
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Billing</h2>
@@ -132,14 +160,41 @@ export const BillingTab = () => {
                   <div className="flex justify-between items-center p-4 border rounded-lg">
                     <div>
                       <p className="font-medium capitalize">{subscription.plan_type} Plan</p>
-                      <p className="text-sm text-gray-600">
-                        Next billing date: {new Date(subscription.current_period_end || '').toLocaleDateString()}
-                      </p>
+                      {isPaidPlan && subscription.current_period_end && (
+                        <p className="text-sm text-gray-600">
+                          Next billing date: {new Date(subscription.current_period_end).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
-                    <p className="font-medium">
-                      {subscription.plan_type === 'pro' ? '$9.99' : 
-                       subscription.plan_type === 'enterprise' ? '$29.99' : 'Free'}
-                    </p>
+                    <div className="text-right">
+                      <p className="font-medium">
+                        {subscription.plan_type === 'pro' ? '$9/mo' : 
+                         subscription.plan_type === 'premium' ? '$25/mo' : 'Free'}
+                      </p>
+                      {isPaidPlan && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm" className="mt-2">
+                              Cancel Plan
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Cancel Subscription</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to cancel your subscription? You'll be downgraded to the Free plan at the end of your current billing period.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep Subscription</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleCancelSubscription}>
+                                Cancel Subscription
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}

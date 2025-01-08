@@ -24,7 +24,7 @@ export const CreditsProgress = ({
         </p>
         {subscription?.current_period_end && (
           <p className="text-sm text-gray-600">
-            Renews on {new Date(subscription.current_period_end).toLocaleDateString()}
+            Credits renew on {new Date(subscription.current_period_end).toLocaleDateString()}
           </p>
         )}
       </div>

@@ -18,6 +18,7 @@ interface PlanCardProps {
   priceId: string;
   isCurrentPlan: boolean;
   isLoading: boolean;
+  buttonText: string;
   onUpgrade: (priceId: string) => void;
 }
 
@@ -29,6 +30,7 @@ export const PlanCard = ({
   priceId,
   isCurrentPlan,
   isLoading,
+  buttonText,
   onUpgrade,
 }: PlanCardProps) => {
   return (
@@ -52,7 +54,7 @@ export const PlanCard = ({
           disabled={isCurrentPlan || isLoading}
           onClick={() => onUpgrade(priceId)}
         >
-          {isCurrentPlan ? 'Current Plan' : `Upgrade to ${title}`}
+          {buttonText}
         </Button>
       </CardContent>
     </Card>
