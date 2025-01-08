@@ -117,6 +117,7 @@ export const MembershipTab = () => {
                     <Button 
                       className="w-full" 
                       disabled={subscription?.plan_type === 'free' || isLoading}
+                      onClick={() => handleUpgrade('price_1Qbl8cKtE1i0bFDa050g8sXL')}
                     >
                       Current Plan
                     </Button>
@@ -147,7 +148,7 @@ export const MembershipTab = () => {
                     <Button 
                       className="w-full" 
                       disabled={subscription?.plan_type === 'pro' || isLoading}
-                      onClick={() => handleUpgrade('price_pro')}
+                      onClick={() => handleUpgrade('price_1Qbl93KtE1i0bFDasRX5eE37')}
                     >
                       {subscription?.plan_type === 'pro' ? 'Current Plan' : 'Upgrade to Pro'}
                     </Button>
@@ -178,7 +179,7 @@ export const MembershipTab = () => {
                     <Button 
                       className="w-full"
                       disabled={subscription?.plan_type === 'premium' || isLoading}
-                      onClick={() => handleUpgrade('price_premium')}
+                      onClick={() => handleUpgrade('price_1Qbl9VKtE1i0bFDaHWBPtG7g')}
                     >
                       {subscription?.plan_type === 'premium' ? 'Current Plan' : 'Upgrade to Premium'}
                     </Button>
