@@ -8,17 +8,15 @@ interface UserSettingsProps {
 export const UserSettings = ({ onLogout }: UserSettingsProps) => {
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Settings</h2>
-      
+      <h2 className="text-2xl font-bold">Settings</h2>
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">Account</h3>
-        <Button 
-          variant="destructive" 
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto"
           onClick={onLogout}
-          className="w-full sm:w-auto flex items-center gap-2"
         >
-          <LogOut size={16} />
-          Log Out
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
         </Button>
       </div>
     </div>

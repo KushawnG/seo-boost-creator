@@ -136,7 +136,7 @@ const Dashboard = () => {
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
             <div className="text-lg font-semibold">Dashboard</div>
-            <div className="w-10"></div> {/* Spacer for alignment */}
+            <div className="w-10"></div>
           </div>
         </div>
 
