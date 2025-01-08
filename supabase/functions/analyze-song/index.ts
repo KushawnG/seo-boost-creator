@@ -1,132 +1,160 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface FadrResponse {
+  asset: {
+    metaData?: {
+      key?: string;
+      tempo?: number;
+    };
+    stems?: string[];
+  };
+  task: {
+    status: {
+      complete: boolean;
+    };
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const { url, filePath } = await req.json()
+    const apiKey = Deno.env.get('FADR_API_KEY')
+    if (!apiKey) throw new Error('FADR_API_KEY not found')
 
-    const { url, file_path, analysis_id } = await req.json()
-    const fadrApiKey = Deno.env.get('FADR_API_KEY')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!supabaseUrl || !supabaseServiceKey) throw new Error('Supabase credentials not found')
 
-    if (!fadrApiKey) {
-      throw new Error('FADR_API_KEY not set')
-    }
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const headers = {
-      'Authorization': `Bearer ${fadrApiKey}`,
-      'Content-Type': 'application/json',
-    }
-
-    // If we have a file_path, we need to download it from storage first
-    let audioFile
-    if (file_path) {
+    // If filePath is provided, get the file from Supabase storage
+    let audioFile: ArrayBuffer | null = null
+    if (filePath) {
       const { data, error } = await supabase.storage
         .from('audio_files')
-        .download(file_path)
+        .download(filePath)
       
       if (error) throw error
-      audioFile = data
+      audioFile = await data.arrayBuffer()
     }
 
-    // Create upload URL
-    const uploadRes = await fetch('https://api.fadr.com/assets/upload2', {
+    // Create presigned URL for upload
+    const uploadResponse = await fetch('https://api.fadr.com/assets/upload2', {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        name: 'song.mp3',
-        extension: 'mp3'
-      })
-    })
-
-    const { url: uploadUrl, s3Path } = await uploadRes.json()
-
-    // Upload file
-    await fetch(uploadUrl, {
-      method: 'PUT',
       headers: {
-        'Content-Type': 'audio/mp3'
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      body: audioFile || await fetch(url).then(res => res.blob())
+      body: JSON.stringify({
+        name: filePath ? filePath.split('/').pop() : url.split('/').pop(),
+        extension: 'mp3',
+      }),
     })
+
+    if (!uploadResponse.ok) throw new Error('Failed to get upload URL')
+    const { url: uploadUrl, s3Path } = await uploadResponse.json()
+
+    // Upload the file
+    if (audioFile) {
+      const uploadFileResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'audio/mp3',
+        },
+        body: audioFile,
+      })
+      if (!uploadFileResponse.ok) throw new Error('Failed to upload file')
+    }
 
     // Create asset
-    const assetRes = await fetch('https://api.fadr.com/assets', {
+    const createAssetResponse = await fetch('https://api.fadr.com/assets', {
       method: 'POST',
-      headers,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        name: 'song.mp3',
+        name: filePath ? filePath.split('/').pop() : url.split('/').pop(),
         extension: 'mp3',
         group: 'song-analysis',
-        s3Path
-      })
+        s3Path,
+      }),
     })
 
-    const { asset } = await assetRes.json()
+    if (!createAssetResponse.ok) throw new Error('Failed to create asset')
+    const { asset } = await createAssetResponse.json()
 
     // Create stem task
-    const taskRes = await fetch('https://api.fadr.com/assets/analyze/stem', {
+    const createTaskResponse = await fetch('https://api.fadr.com/assets/analyze/stem', {
       method: 'POST',
-      headers,
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        _id: asset._id
-      })
+        _id: asset._id,
+      }),
     })
 
-    const { task } = await taskRes.json()
+    if (!createTaskResponse.ok) throw new Error('Failed to create task')
+    const initialTaskResponse: FadrResponse = await createTaskResponse.json()
 
-    // Poll for results
-    let analysisComplete = false
+    // Poll for task completion
+    let taskComplete = false
     let attempts = 0
-    const maxAttempts = 60 // 5 minutes max
+    let finalResponse: FadrResponse | null = null
 
-    while (!analysisComplete && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
-
-      const statusRes = await fetch(`https://api.fadr.com/tasks/${task._id}`, {
-        headers
+    while (!taskComplete && attempts < 12) { // Max 1 minute waiting time
+      await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds between polls
+      
+      const taskStatusResponse = await fetch(`https://api.fadr.com/tasks/${initialTaskResponse.task._id}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
       })
 
-      const { task: updatedTask } = await statusRes.json()
-
-      if (updatedTask.status.complete) {
-        // Update the analysis record with the results
-        const { error } = await supabase
-          .from('song_analysis')
-          .update({
-            key: updatedTask.asset.metaData.key,
-            bpm: updatedTask.asset.metaData.tempo,
-            chords: updatedTask.asset.metaData.chords || [],
-            status: 'completed'
-          })
-          .eq('id', analysis_id)
-
-        if (error) throw error
-        analysisComplete = true
+      if (!taskStatusResponse.ok) throw new Error('Failed to check task status')
+      finalResponse = await taskStatusResponse.json()
+      
+      if (finalResponse.task.status.complete) {
+        taskComplete = true
       }
-
+      
       attempts++
     }
 
+    if (!finalResponse || !taskComplete) {
+      throw new Error('Analysis timed out')
+    }
+
+    // Return the analysis results
     return new Response(
-      JSON.stringify({ message: 'Analysis started' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({
+        key: finalResponse.asset.metaData?.key || 'Unknown',
+        bpm: finalResponse.asset.metaData?.tempo || 0,
+        chords: finalResponse.asset.stems || [],
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
     )
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
     )
   }
 })

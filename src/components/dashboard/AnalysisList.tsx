@@ -1,9 +1,16 @@
-import { useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -27,61 +34,42 @@ export const AnalysisList = () => {
     }
   });
 
-  useEffect(() => {
-    const channel = supabase
-      .channel('song_analysis_updates')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'song_analysis',
-      }, (payload) => {
-        if (payload.new.status === 'completed') {
-          toast({
-            title: "Analysis Complete",
-            description: `Analysis for "${payload.new.title}" is ready.`
-          });
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [toast]);
-
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div>Loading analyses...</div>;
+  }
+
+  if (!analyses?.length) {
+    return <div>No analyses found. Try analyzing a song!</div>;
   }
 
   return (
-    <div className="space-y-4">
-      {analyses?.map((analysis) => (
-        <Card key={analysis.id}>
-          <CardHeader>
-            <CardTitle>{analysis.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <div className="font-semibold">Status</div>
-                <div className="capitalize">{analysis.status}</div>
-              </div>
-              <div>
-                <div className="font-semibold">Key</div>
-                <div>{analysis.key || 'Analyzing...'}</div>
-              </div>
-              <div>
-                <div className="font-semibold">BPM</div>
-                <div>{analysis.bpm || 'Analyzing...'}</div>
-              </div>
-              <div>
-                <div className="font-semibold">Chords</div>
-                <div>{analysis.chords?.join(', ') || 'Analyzing...'}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Title</TableHead>
+          <TableHead>Key</TableHead>
+          <TableHead>BPM</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead>Created At</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {analyses.map((analysis) => (
+          <TableRow key={analysis.id}>
+            <TableCell>{analysis.title}</TableCell>
+            <TableCell>{analysis.key || 'N/A'}</TableCell>
+            <TableCell>{analysis.bpm || 'N/A'}</TableCell>
+            <TableCell>
+              <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
+                {analysis.status}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              {new Date(analysis.created_at).toLocaleDateString()}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 };

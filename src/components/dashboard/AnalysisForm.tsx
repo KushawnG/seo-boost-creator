@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -9,7 +9,9 @@ export const AnalysisForm = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleAnalyze = async () => {
+  const analyzeUrl = async () => {
+    if (!url) return;
+
     try {
       setIsLoading(true);
 
@@ -30,24 +32,45 @@ export const AnalysisForm = () => {
 
       if (insertError) throw insertError;
 
-      // Call edge function
-      const { error: analysisError } = await supabase.functions.invoke('analyze-song', {
-        body: { url, analysis_id: analysis.id }
-      });
+      // Call the analyze-song function
+      const response = await fetch(
+        `${process.env.SUPABASE_URL}/functions/v1/analyze-song`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url }),
+        }
+      );
 
-      if (analysisError) throw analysisError;
+      if (!response.ok) throw new Error('Analysis failed');
+      const result = await response.json();
+
+      // Update the analysis record with results
+      const { error: updateError } = await supabase
+        .from('song_analysis')
+        .update({
+          key: result.key,
+          bpm: result.bpm,
+          chords: result.chords,
+          status: 'completed'
+        })
+        .eq('id', analysis.id);
+
+      if (updateError) throw updateError;
 
       toast({
-        title: "Analysis Started",
-        description: "We'll notify you when the analysis is complete."
+        title: "Analysis Complete",
+        description: "Your song has been successfully analyzed.",
       });
-
-      setUrl("");
     } catch (error) {
+      console.error('Analysis error:', error);
       toast({
-        title: "Error",
+        title: "Analysis Failed",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -56,12 +79,13 @@ export const AnalysisForm = () => {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
-      setIsLoading(true);
       const file = event.target.files?.[0];
       if (!file) return;
 
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("User not authenticated");
+
+      setIsLoading(true);
 
       // Upload file to storage
       const filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
@@ -85,22 +109,45 @@ export const AnalysisForm = () => {
 
       if (insertError) throw insertError;
 
-      // Call edge function
-      const { error: analysisError } = await supabase.functions.invoke('analyze-song', {
-        body: { file_path: filePath, analysis_id: analysis.id }
-      });
+      // Call the analyze-song function
+      const response = await fetch(
+        `${process.env.SUPABASE_URL}/functions/v1/analyze-song`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ filePath }),
+        }
+      );
 
-      if (analysisError) throw analysisError;
+      if (!response.ok) throw new Error('Analysis failed');
+      const result = await response.json();
+
+      // Update the analysis record with results
+      const { error: updateError } = await supabase
+        .from('song_analysis')
+        .update({
+          key: result.key,
+          bpm: result.bpm,
+          chords: result.chords,
+          status: 'completed'
+        })
+        .eq('id', analysis.id);
+
+      if (updateError) throw updateError;
 
       toast({
-        title: "Analysis Started",
-        description: "We'll notify you when the analysis is complete."
+        title: "Analysis Complete",
+        description: "Your song has been successfully analyzed.",
       });
     } catch (error) {
+      console.error('Upload error:', error);
       toast({
-        title: "Error",
+        title: "Upload Failed",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -109,43 +156,29 @@ export const AnalysisForm = () => {
 
   return (
     <div className="space-y-4">
-      <Input
-        placeholder="Enter YouTube URL..."
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        disabled={isLoading}
-      />
-      
-      <div className="flex items-center justify-center">
-        <div className="border-t flex-grow"></div>
-        <span className="px-4 text-gray-500">OR</span>
-        <div className="border-t flex-grow"></div>
+      <div className="flex gap-4">
+        <Input
+          type="text"
+          placeholder="Enter song URL (YouTube, SoundCloud, etc.)"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          disabled={isLoading}
+        />
+        <Button onClick={analyzeUrl} disabled={!url || isLoading}>
+          {isLoading ? "Analyzing..." : "Analyze URL"}
+        </Button>
       </div>
-      
-      <Button
-        variant="outline"
-        className="w-full"
-        disabled={isLoading}
-        onClick={() => document.getElementById("file-upload")?.click()}
-      >
-        Upload Audio File
-        <input
-          id="file-upload"
+      <div className="flex items-center gap-4">
+        <Input
           type="file"
-          className="hidden"
           accept="audio/*"
           onChange={handleFileUpload}
           disabled={isLoading}
         />
-      </Button>
-      
-      <Button 
-        className="w-full"
-        onClick={handleAnalyze}
-        disabled={isLoading || !url}
-      >
-        Analyze
-      </Button>
+        <Button disabled={isLoading}>
+          {isLoading ? "Uploading..." : "Upload File"}
+        </Button>
+      </div>
     </div>
   );
 };
