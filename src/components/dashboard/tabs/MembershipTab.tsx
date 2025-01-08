@@ -84,19 +84,14 @@ export const MembershipTab = () => {
   const handleUpgrade = async (priceId: string) => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-        body: JSON.stringify({ priceId }),
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: { priceId }
       });
 
-      const { url, error } = await response.json();
-      if (error) throw new Error(error);
-      if (url) window.location.href = url;
+      if (error) throw error;
+      if (data?.url) window.location.href = data.url;
     } catch (error) {
+      console.error('Error creating checkout session:', error);
       toast({
         title: "Error",
         description: "Failed to initiate upgrade. Please try again.",
@@ -110,22 +105,16 @@ export const MembershipTab = () => {
   const handleDowngrade = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/cancel-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-      });
+      const { error } = await supabase.functions.invoke('cancel-subscription');
 
-      const { error } = await response.json();
-      if (error) throw new Error(error);
+      if (error) throw error;
 
       toast({
         title: "Success",
         description: "Your subscription will be downgraded to the Free plan at the end of your billing period.",
       });
     } catch (error) {
+      console.error('Error canceling subscription:', error);
       toast({
         title: "Error",
         description: "Failed to downgrade subscription. Please try again.",
