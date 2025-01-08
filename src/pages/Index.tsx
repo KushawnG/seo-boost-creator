@@ -50,12 +50,24 @@ const Index = () => {
               <div className="text-4xl font-bold mb-6">$0<span className="text-lg text-gray-500">/month</span></div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
+                  <Music className="h-5 w-5 text-primary mr-2" />
+                  <span>5 song analyses per month</span>
+                </li>
+                <li className="flex items-center">
+                  <Clock className="h-5 w-5 text-primary mr-2" />
+                  <span>Up to 30 seconds per song</span>
+                </li>
+                <li className="flex items-center">
                   <Zap className="h-5 w-5 text-primary mr-2" />
-                  <span>5 songs per day</span>
+                  <span>Chord Detection</span>
                 </li>
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>Basic chord detection</span>
+                  <span>Key Detection</span>
+                </li>
+                <li className="flex items-center">
+                  <Clock className="h-5 w-5 text-primary mr-2" />
+                  <span>BPM Detection</span>
                 </li>
               </ul>
               <Link to="/auth">
@@ -68,16 +80,24 @@ const Index = () => {
               <div className="text-4xl font-bold mb-6">$9<span className="text-lg text-gray-500">/month</span></div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
-                  <Zap className="h-5 w-5 text-primary mr-2" />
-                  <span>Unlimited songs</span>
-                </li>
-                <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>Advanced chord detection</span>
+                  <span>25 song analyses per month</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>Priority processing</span>
+                  <span>Up to 4 minutes per song</span>
+                </li>
+                <li className="flex items-center">
+                  <Zap className="h-5 w-5 text-primary mr-2" />
+                  <span>Chord Detection</span>
+                </li>
+                <li className="flex items-center">
+                  <Music className="h-5 w-5 text-primary mr-2" />
+                  <span>Key Detection</span>
+                </li>
+                <li className="flex items-center">
+                  <Clock className="h-5 w-5 text-primary mr-2" />
+                  <span>BPM Detection</span>
                 </li>
               </ul>
               <Link to="/auth">
@@ -86,23 +106,37 @@ const Index = () => {
             </Card>
             
             <Card className="p-8">
-              <h3 className="text-xl font-semibold mb-4">Enterprise</h3>
-              <div className="text-4xl font-bold mb-6">Custom</div>
+              <h3 className="text-xl font-semibold mb-4">Premium</h3>
+              <div className="text-4xl font-bold mb-6">$25<span className="text-lg text-gray-500">/month</span></div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
+                  <Music className="h-5 w-5 text-primary mr-2" />
+                  <span>100 song analyses per month</span>
+                </li>
+                <li className="flex items-center">
+                  <Clock className="h-5 w-5 text-primary mr-2" />
+                  <span>Up to 4 minutes per song</span>
+                </li>
+                <li className="flex items-center">
                   <Zap className="h-5 w-5 text-primary mr-2" />
-                  <span>Custom integration</span>
+                  <span>Chord Detection</span>
                 </li>
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>Dedicated support</span>
+                  <span>Key Detection</span>
+                </li>
+                <li className="flex items-center">
+                  <Clock className="h-5 w-5 text-primary mr-2" />
+                  <span>BPM Detection</span>
                 </li>
                 <li className="flex items-center">
                   <Lock className="h-5 w-5 text-primary mr-2" />
-                  <span>SLA guarantee</span>
+                  <span>Stem Splitter</span>
                 </li>
               </ul>
-              <Button variant="outline" className="w-full">Contact Sales</Button>
+              <Link to="/auth">
+                <Button variant="outline" className="w-full">Get Premium</Button>
+              </Link>
             </Card>
           </div>
         </div>

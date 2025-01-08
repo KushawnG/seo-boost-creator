@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { Database } from "@/integrations/supabase/types";
+import { Music, Zap, Clock, Lock } from "lucide-react";
 
 type Subscription = Database['public']['Tables']['subscriptions']['Row']
 
@@ -79,7 +80,7 @@ export const MembershipTab = () => {
               <div className="space-y-2">
                 <Progress value={creditsPercent} />
                 <p className="text-sm text-gray-600">
-                  {subscription?.credits_remaining || 0} credits remaining out of {creditsTotal}
+                  {subscription?.credits_remaining || 0} analyses remaining out of {creditsTotal}
                 </p>
                 {subscription?.current_period_end && (
                   <p className="text-sm text-gray-600">
@@ -91,12 +92,52 @@ export const MembershipTab = () => {
 
             <div>
               <h3 className="text-lg font-semibold mb-4">Available Plans</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <h4 className="font-semibold">Free Plan</h4>
+                    <p className="text-2xl font-bold my-2">$0/mo</p>
+                    <ul className="text-sm text-gray-600 space-y-2 mb-4">
+                      <li className="flex items-center">
+                        <Music className="h-4 w-4 text-primary mr-2" />
+                        5 analyses/month
+                      </li>
+                      <li className="flex items-center">
+                        <Clock className="h-4 w-4 text-primary mr-2" />
+                        30 sec per song
+                      </li>
+                      <li className="flex items-center">
+                        <Zap className="h-4 w-4 text-primary mr-2" />
+                        Basic features
+                      </li>
+                    </ul>
+                    <Button 
+                      className="w-full" 
+                      disabled={subscription?.plan_type === 'free' || isLoading}
+                    >
+                      Current Plan
+                    </Button>
+                  </CardContent>
+                </Card>
+
                 <Card>
                   <CardContent className="p-4">
                     <h4 className="font-semibold">Pro Plan</h4>
-                    <p className="text-2xl font-bold my-2">$9.99/mo</p>
-                    <p className="text-sm text-gray-600 mb-4">50 credits/month</p>
+                    <p className="text-2xl font-bold my-2">$9/mo</p>
+                    <ul className="text-sm text-gray-600 space-y-2 mb-4">
+                      <li className="flex items-center">
+                        <Music className="h-4 w-4 text-primary mr-2" />
+                        25 analyses/month
+                      </li>
+                      <li className="flex items-center">
+                        <Clock className="h-4 w-4 text-primary mr-2" />
+                        4 min per song
+                      </li>
+                      <li className="flex items-center">
+                        <Zap className="h-4 w-4 text-primary mr-2" />
+                        All basic features
+                      </li>
+                    </ul>
                     <Button 
                       className="w-full" 
                       disabled={subscription?.plan_type === 'pro' || isLoading}
@@ -106,17 +147,31 @@ export const MembershipTab = () => {
                     </Button>
                   </CardContent>
                 </Card>
+
                 <Card>
                   <CardContent className="p-4">
-                    <h4 className="font-semibold">Enterprise Plan</h4>
-                    <p className="text-2xl font-bold my-2">$29.99/mo</p>
-                    <p className="text-sm text-gray-600 mb-4">Unlimited credits</p>
+                    <h4 className="font-semibold">Premium Plan</h4>
+                    <p className="text-2xl font-bold my-2">$25/mo</p>
+                    <ul className="text-sm text-gray-600 space-y-2 mb-4">
+                      <li className="flex items-center">
+                        <Music className="h-4 w-4 text-primary mr-2" />
+                        100 analyses/month
+                      </li>
+                      <li className="flex items-center">
+                        <Clock className="h-4 w-4 text-primary mr-2" />
+                        4 min per song
+                      </li>
+                      <li className="flex items-center">
+                        <Lock className="h-4 w-4 text-primary mr-2" />
+                        Stem Splitter
+                      </li>
+                    </ul>
                     <Button 
                       className="w-full"
-                      disabled={subscription?.plan_type === 'enterprise' || isLoading}
-                      onClick={() => handleUpgrade('price_enterprise')}
+                      disabled={subscription?.plan_type === 'premium' || isLoading}
+                      onClick={() => handleUpgrade('price_premium')}
                     >
-                      {subscription?.plan_type === 'enterprise' ? 'Current Plan' : 'Upgrade'}
+                      {subscription?.plan_type === 'premium' ? 'Current Plan' : 'Upgrade'}
                     </Button>
                   </CardContent>
                 </Card>
