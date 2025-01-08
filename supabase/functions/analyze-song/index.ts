@@ -61,7 +61,22 @@ serve(async (req) => {
       )
     }
 
+    // Ensure we have a valid file extension
     const fileName = filePath ? filePath.split('/').pop() : url?.split('/').pop() || 'unknown';
+    const fileExtension = fileName.split('.').pop()?.toLowerCase();
+    const validExtensions = ['mp3', 'wav', 'm4a', 'aac', 'ogg'];
+    
+    if (!fileExtension || !validExtensions.includes(fileExtension)) {
+      console.error('Invalid file extension:', fileExtension);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid file type', 
+          details: `File must be one of: ${validExtensions.join(', ')}` 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
     console.log('Getting FADR upload URL for:', fileName)
     
     try {

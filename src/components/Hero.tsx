@@ -3,13 +3,14 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export const Hero = () => {
   const [url, setUrl] = useState("");
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const handleAnalyze = async () => {
-    // Store the URL in localStorage before redirecting
     if (url) {
       localStorage.setItem('pendingAnalysis', url);
     }
@@ -21,12 +22,41 @@ export const Hero = () => {
       return;
     }
     
-    // If user is already authenticated, proceed to dashboard
     navigate("/dashboard");
   };
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file extension
+    const allowedExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload an audio file (MP3, WAV, M4A, AAC, or OGG)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      toast({
+        title: "File Too Large",
+        description: "Please upload a file smaller than 50MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    localStorage.setItem('pendingAnalysisFile', file.name);
+    handleAnalyze();
   };
 
   return (
@@ -76,13 +106,8 @@ export const Hero = () => {
               id="file-upload"
               type="file"
               className="hidden"
-              accept="audio/*"
-              onChange={(e) => {
-                if (e.target.files?.[0]) {
-                  localStorage.setItem('pendingAnalysisFile', e.target.files[0].name);
-                  handleAnalyze();
-                }
-              }}
+              accept="audio/mp3,audio/wav,audio/m4a,audio/aac,audio/ogg"
+              onChange={handleFileUpload}
             />
           </Button>
           
