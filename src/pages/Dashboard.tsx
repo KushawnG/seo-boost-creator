@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Home, List, User, CreditCard, Settings } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -18,7 +20,28 @@ const Dashboard = () => {
       }
     };
     checkAuth();
-  }, [navigate]);
+
+    // Check for pending analysis
+    const pendingUrl = localStorage.getItem('pendingAnalysis');
+    const pendingFile = localStorage.getItem('pendingAnalysisFile');
+    
+    if (pendingUrl || pendingFile) {
+      // Clear the pending analysis
+      localStorage.removeItem('pendingAnalysis');
+      localStorage.removeItem('pendingAnalysisFile');
+      
+      // Show toast notification
+      toast({
+        title: "Analysis Started",
+        description: pendingUrl 
+          ? `Analyzing URL: ${pendingUrl}` 
+          : `Analyzing file: ${pendingFile}`,
+      });
+      
+      // Here you would trigger the actual analysis
+      console.log("Starting analysis for:", pendingUrl || pendingFile);
+    }
+  }, [navigate, toast]);
 
   return (
     <div className="min-h-screen bg-gray-50">

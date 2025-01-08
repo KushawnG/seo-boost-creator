@@ -9,6 +9,11 @@ export const Hero = () => {
   const navigate = useNavigate();
   
   const handleAnalyze = async () => {
+    // Store the URL in localStorage before redirecting
+    if (url) {
+      localStorage.setItem('pendingAnalysis', url);
+    }
+    
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
@@ -16,8 +21,8 @@ export const Hero = () => {
       return;
     }
     
-    // Handle analysis logic here
-    console.log("Analyzing:", url);
+    // If user is already authenticated, proceed to dashboard
+    navigate("/dashboard");
   };
 
   const scrollToTop = () => {
@@ -62,7 +67,9 @@ export const Hero = () => {
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => document.getElementById("file-upload")?.click()}
+            onClick={() => {
+              document.getElementById("file-upload")?.click();
+            }}
           >
             Click to upload a file
             <input
@@ -70,7 +77,12 @@ export const Hero = () => {
               type="file"
               className="hidden"
               accept="audio/*"
-              onChange={(e) => console.log(e.target.files?.[0])}
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  localStorage.setItem('pendingAnalysisFile', e.target.files[0].name);
+                  handleAnalyze();
+                }
+              }}
             />
           </Button>
           
