@@ -1,14 +1,15 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { AnalysisForm } from "@/components/dashboard/AnalysisForm";
-import { AnalysisList } from "@/components/dashboard/AnalysisList";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Home, List, User, CreditCard, Settings, LogOut } from "lucide-react";
 import { useState } from "react";
-import { RecentAnalyses } from "@/components/dashboard/RecentAnalyses";
 import { UserSettings } from "@/components/dashboard/UserSettings";
+import { HomeTab } from "@/components/dashboard/tabs/HomeTab";
+import { TrackHistoryTab } from "@/components/dashboard/tabs/TrackHistoryTab";
+import { MembershipTab } from "@/components/dashboard/tabs/MembershipTab";
+import { BillingTab } from "@/components/dashboard/tabs/BillingTab";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -27,14 +28,11 @@ const Dashboard = () => {
   const renderContent = () => {
     switch (activeTab) {
       case "history":
-        return (
-          <Card>
-            <CardContent className="p-6">
-              <h2 className="text-2xl font-bold mb-6">Track History</h2>
-              <AnalysisList showAll={true} />
-            </CardContent>
-          </Card>
-        );
+        return <TrackHistoryTab />;
+      case "membership":
+        return <MembershipTab />;
+      case "billing":
+        return <BillingTab />;
       case "settings":
         return (
           <Card>
@@ -44,18 +42,7 @@ const Dashboard = () => {
           </Card>
         );
       default:
-        return (
-          <>
-            <Card className="mb-8">
-              <CardContent className="p-6">
-                <h2 className="text-2xl font-bold mb-6">Analyze New Track</h2>
-                <AnalysisForm />
-              </CardContent>
-            </Card>
-
-            <RecentAnalyses />
-          </>
-        );
+        return <HomeTab />;
     }
   };
 
@@ -64,6 +51,11 @@ const Dashboard = () => {
       {/* Sidebar */}
       <div className="fixed left-0 top-0 h-full w-64 bg-white border-r p-4">
         <div className="flex items-center gap-2 mb-8">
+          <img 
+            src="/Chord-Finder-Ai-Logo-Icon-Only.png" 
+            alt="Chord Finder AI" 
+            className="h-8 w-8"
+          />
           <div className="text-xl font-bold">Chord Finder AI</div>
         </div>
         
