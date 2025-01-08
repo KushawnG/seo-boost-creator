@@ -7,6 +7,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Home, List, User, CreditCard, Settings, LogOut } from "lucide-react";
 import { useState } from "react";
+import { RecentAnalyses } from "@/components/dashboard/RecentAnalyses";
+import { UserSettings } from "@/components/dashboard/UserSettings";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,21 +26,20 @@ const Dashboard = () => {
 
   const renderContent = () => {
     switch (activeTab) {
+      case "history":
+        return (
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-6">Track History</h2>
+              <AnalysisList showAll={true} />
+            </CardContent>
+          </Card>
+        );
       case "settings":
         return (
           <Card>
             <CardContent className="p-6">
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Account</h3>
-                <Button 
-                  variant="destructive" 
-                  onClick={handleLogout}
-                  className="w-full sm:w-auto flex items-center gap-2"
-                >
-                  <LogOut size={16} />
-                  Log Out
-                </Button>
-              </div>
+              <UserSettings onLogout={handleLogout} />
             </CardContent>
           </Card>
         );
@@ -47,11 +48,12 @@ const Dashboard = () => {
           <>
             <Card className="mb-8">
               <CardContent className="p-6">
+                <h2 className="text-2xl font-bold mb-6">Analyze New Track</h2>
                 <AnalysisForm />
               </CardContent>
             </Card>
 
-            <AnalysisList />
+            <RecentAnalyses />
           </>
         );
     }

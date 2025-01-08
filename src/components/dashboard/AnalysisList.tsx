@@ -14,20 +14,30 @@ import { Badge } from "@/components/ui/badge";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
-export const AnalysisList = () => {
+interface AnalysisListProps {
+  showAll?: boolean;
+}
+
+export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   const { toast } = useToast();
 
   const { data: analyses, isLoading } = useQuery({
-    queryKey: ['analyses'],
+    queryKey: ['analyses', { showAll }],
     queryFn: async () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("User not authenticated");
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('song_analysis')
         .select('*')
         .eq('user_id', user.user.id)
         .order('created_at', { ascending: false });
+
+      if (!showAll) {
+        query = query.limit(5);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Analysis[];
