@@ -2,25 +2,56 @@ import { Button } from "@/components/ui/button";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export const Navigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Auth check error:', error);
+        }
+        setIsAuthenticated(!!session);
+      } catch (error) {
+        console.error('Session check error:', error);
+      }
     };
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Nav auth state changed:', event, !!session);
       setIsAuthenticated(!!session);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: "Signed out successfully",
+        description: "You have been logged out of your account.",
+      });
+      
+      navigate('/');
+    } catch (error) {
+      console.error('Sign out error:', error);
+      toast({
+        title: "Error signing out",
+        description: "There was a problem signing you out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Don't show navigation on dashboard
   if (location.pathname === "/dashboard") {
@@ -38,7 +69,7 @@ export const Navigation = () => {
           <div className="flex-1 flex items-center">
             <Link to="/" onClick={scrollToTop} className="flex items-center space-x-2">
               <img 
-                src="Chord-Finder-Ai-Logo-Icon-Only.png" 
+                src="/Chord-Finder-Ai-Logo-Icon-Only.png" 
                 alt="Chord Finder AI" 
                 className="h-8 w-8"
               />
@@ -57,9 +88,14 @@ export const Navigation = () => {
           
           <div className="flex-1 flex justify-end items-center space-x-4">
             {isAuthenticated ? (
-              <Link to="/dashboard">
-                <Button>Dashboard</Button>
-              </Link>
+              <>
+                <Link to="/dashboard">
+                  <Button>Dashboard</Button>
+                </Link>
+                <Button variant="ghost" onClick={handleSignOut}>
+                  Sign Out
+                </Button>
+              </>
             ) : (
               <>
                 <Link to="/auth">
