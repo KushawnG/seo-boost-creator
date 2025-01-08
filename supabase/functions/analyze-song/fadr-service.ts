@@ -119,7 +119,11 @@ export async function pollTaskStatus(apiKey: string, taskId: string) {
     const data = await response.json();
     console.log('Poll response:', data);
     
-    if (data.task.status.complete) {
+    if (data.task?.status?.complete) {
+      if (!data.asset) {
+        console.error('Task completed but no asset data found:', data);
+        throw new Error('Task completed but asset data is missing');
+      }
       console.log('Task completed successfully');
       return data;
     }

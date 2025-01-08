@@ -91,25 +91,32 @@ serve(async (req) => {
 
       console.log('Creating FADR asset')
       const { asset } = await createFadrAsset(apiKey, fileName, s3Path)
+      if (!asset || !asset._id) {
+        console.error('Invalid asset response:', asset)
+        throw new Error('Failed to create asset: Invalid response')
+      }
       console.log('FADR asset created:', asset)
 
       console.log('Creating analysis task')
       const initialTaskResponse = await createAnalysisTask(apiKey, asset._id)
+      if (!initialTaskResponse.task?._id) {
+        console.error('Invalid task response:', initialTaskResponse)
+        throw new Error('Failed to create analysis task: Invalid response')
+      }
       console.log('Analysis task created:', initialTaskResponse)
 
       console.log('Polling for task completion')
-      const finalResponse = await pollTaskStatus(apiKey, initialTaskResponse.task._id!)
+      const finalResponse = await pollTaskStatus(apiKey, initialTaskResponse.task._id)
       console.log('Analysis complete, results:', finalResponse)
 
-      // Validate the response structure
-      if (!finalResponse?.asset) {
-        throw new Error('Invalid response structure: missing asset data')
+      if (!finalResponse?.asset?.metaData) {
+        console.error('Invalid final response:', finalResponse)
+        throw new Error('Invalid response structure: missing metadata')
       }
 
-      // Extract data with fallbacks
       const analysisData = {
-        key: finalResponse.asset.metaData?.key || 'Unknown',
-        bpm: finalResponse.asset.metaData?.tempo || 0,
+        key: finalResponse.asset.metaData.key || 'Unknown',
+        bpm: finalResponse.asset.metaData.tempo || 0,
         chords: finalResponse.asset.stems || [],
       }
 
