@@ -61,9 +61,22 @@ export const MembershipTab = () => {
         .from('subscriptions')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      
+      // If no subscription exists, return a default free subscription
+      if (!data) {
+        return {
+          plan_type: 'free',
+          credits_remaining: 5,
+          credits_total: 5,
+          current_period_end: null,
+          current_period_start: null,
+          cancel_at_period_end: false,
+        } as Subscription;
+      }
+
       return data as Subscription;
     }
   });
