@@ -101,12 +101,22 @@ serve(async (req) => {
       const finalResponse = await pollTaskStatus(apiKey, initialTaskResponse.task._id!)
       console.log('Analysis complete, results:', finalResponse)
 
+      // Validate the response structure
+      if (!finalResponse?.asset) {
+        throw new Error('Invalid response structure: missing asset data')
+      }
+
+      // Extract data with fallbacks
+      const analysisData = {
+        key: finalResponse.asset.metaData?.key || 'Unknown',
+        bpm: finalResponse.asset.metaData?.tempo || 0,
+        chords: finalResponse.asset.stems || [],
+      }
+
+      console.log('Extracted analysis data:', analysisData)
+
       return new Response(
-        JSON.stringify({
-          key: finalResponse.asset.metaData?.key || 'Unknown',
-          bpm: finalResponse.asset.metaData?.tempo || 0,
-          chords: finalResponse.asset.stems || [],
-        }),
+        JSON.stringify(analysisData),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,

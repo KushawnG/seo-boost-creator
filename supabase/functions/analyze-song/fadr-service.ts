@@ -20,7 +20,9 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
     throw new Error(`Failed to get upload URL: ${errorText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('Upload URL response:', data);
+  return data;
 }
 
 export async function uploadFileToFadr(uploadUrl: string, audioFile: ArrayBuffer) {
@@ -38,6 +40,8 @@ export async function uploadFileToFadr(uploadUrl: string, audioFile: ArrayBuffer
     console.error('Failed to upload file:', errorText);
     throw new Error(`Failed to upload file: ${errorText}`);
   }
+
+  console.log('File upload successful');
 }
 
 export async function createFadrAsset(apiKey: string, fileName: string, s3Path: string) {
@@ -62,7 +66,9 @@ export async function createFadrAsset(apiKey: string, fileName: string, s3Path: 
     throw new Error(`Failed to create asset: ${errorText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('Asset creation response:', data);
+  return data;
 }
 
 export async function createAnalysisTask(apiKey: string, assetId: string) {
@@ -84,7 +90,9 @@ export async function createAnalysisTask(apiKey: string, assetId: string) {
     throw new Error(`Failed to create analysis task: ${errorText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('Analysis task creation response:', data);
+  return data;
 }
 
 export async function pollTaskStatus(apiKey: string, taskId: string) {
