@@ -22,33 +22,64 @@ interface FadrResponse {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
     const { url, filePath } = await req.json()
     const apiKey = Deno.env.get('FADR_API_KEY')
-    if (!apiKey) throw new Error('FADR_API_KEY not found')
+    if (!apiKey) {
+      console.error('FADR_API_KEY not found')
+      return new Response(
+        JSON.stringify({ error: 'API key not configured' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    if (!supabaseUrl || !supabaseServiceKey) throw new Error('Supabase credentials not found')
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Supabase credentials not found')
+      return new Response(
+        JSON.stringify({ error: 'Service configuration missing' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
 
+    console.log('Starting analysis with params:', { url, filePath })
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // If filePath is provided, get the file from Supabase storage
     let audioFile: ArrayBuffer | null = null
     if (filePath) {
+      console.log('Downloading file from storage:', filePath)
       const { data, error } = await supabase.storage
         .from('audio_files')
         .download(filePath)
       
-      if (error) throw error
+      if (error) {
+        console.error('Storage download error:', error)
+        return new Response(
+          JSON.stringify({ error: 'Failed to download file' }),
+          { 
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
       audioFile = await data.arrayBuffer()
     }
 
     // Create presigned URL for upload
+    console.log('Requesting upload URL from FADR')
     const uploadResponse = await fetch('https://api.fadr.com/assets/upload2', {
       method: 'POST',
       headers: {
@@ -61,11 +92,22 @@ serve(async (req) => {
       }),
     })
 
-    if (!uploadResponse.ok) throw new Error('Failed to get upload URL')
+    if (!uploadResponse.ok) {
+      console.error('Failed to get upload URL:', await uploadResponse.text())
+      return new Response(
+        JSON.stringify({ error: 'Failed to get upload URL' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     const { url: uploadUrl, s3Path } = await uploadResponse.json()
 
-    // Upload the file
+    // Upload the file if we have one
     if (audioFile) {
+      console.log('Uploading file to FADR')
       const uploadFileResponse = await fetch(uploadUrl, {
         method: 'PUT',
         headers: {
@@ -73,10 +115,20 @@ serve(async (req) => {
         },
         body: audioFile,
       })
-      if (!uploadFileResponse.ok) throw new Error('Failed to upload file')
+      if (!uploadFileResponse.ok) {
+        console.error('Failed to upload file:', await uploadFileResponse.text())
+        return new Response(
+          JSON.stringify({ error: 'Failed to upload file' }),
+          { 
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
     }
 
     // Create asset
+    console.log('Creating FADR asset')
     const createAssetResponse = await fetch('https://api.fadr.com/assets', {
       method: 'POST',
       headers: {
@@ -91,10 +143,21 @@ serve(async (req) => {
       }),
     })
 
-    if (!createAssetResponse.ok) throw new Error('Failed to create asset')
+    if (!createAssetResponse.ok) {
+      console.error('Failed to create asset:', await createAssetResponse.text())
+      return new Response(
+        JSON.stringify({ error: 'Failed to create asset' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     const { asset } = await createAssetResponse.json()
 
     // Create stem task
+    console.log('Creating analysis task')
     const createTaskResponse = await fetch('https://api.fadr.com/assets/analyze/stem', {
       method: 'POST',
       headers: {
@@ -106,7 +169,17 @@ serve(async (req) => {
       }),
     })
 
-    if (!createTaskResponse.ok) throw new Error('Failed to create task')
+    if (!createTaskResponse.ok) {
+      console.error('Failed to create task:', await createTaskResponse.text())
+      return new Response(
+        JSON.stringify({ error: 'Failed to create task' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
+    }
+
     const initialTaskResponse: FadrResponse = await createTaskResponse.json()
 
     // Poll for task completion
@@ -114,6 +187,7 @@ serve(async (req) => {
     let attempts = 0
     let finalResponse: FadrResponse | null = null
 
+    console.log('Polling for task completion')
     while (!taskComplete && attempts < 12) { // Max 1 minute waiting time
       await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds between polls
       
@@ -123,7 +197,17 @@ serve(async (req) => {
         },
       })
 
-      if (!taskStatusResponse.ok) throw new Error('Failed to check task status')
+      if (!taskStatusResponse.ok) {
+        console.error('Failed to check task status:', await taskStatusResponse.text())
+        return new Response(
+          JSON.stringify({ error: 'Failed to check task status' }),
+          { 
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
       finalResponse = await taskStatusResponse.json()
       
       if (finalResponse.task.status.complete) {
@@ -134,9 +218,17 @@ serve(async (req) => {
     }
 
     if (!finalResponse || !taskComplete) {
-      throw new Error('Analysis timed out')
+      console.error('Analysis timed out')
+      return new Response(
+        JSON.stringify({ error: 'Analysis timed out' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
     }
 
+    console.log('Analysis complete, returning results')
     // Return the analysis results
     return new Response(
       JSON.stringify({
@@ -146,13 +238,15 @@ serve(async (req) => {
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
       },
     )
   } catch (error) {
+    console.error('Unexpected error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       {
-        status: 400,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
     )
