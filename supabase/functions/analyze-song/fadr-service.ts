@@ -1,24 +1,8 @@
-import { corsHeaders } from './cors.ts';
-
-interface FadrResponse {
-  asset: {
-    metaData?: {
-      key?: string;
-      tempo?: number;
-    };
-    stems?: string[];
-  };
-  task: {
-    status: {
-      complete: boolean;
-    };
-    _id?: string;
-  };
-}
+const FADR_API_BASE_URL = 'https://api.fadr.com';
 
 export async function getFadrUploadUrl(apiKey: string, fileName: string) {
-  console.log('Requesting upload URL from FADR');
-  const uploadResponse = await fetch('https://api.fadr.com/assets/upload2', {
+  console.log('Requesting upload URL from FADR for:', fileName);
+  const response = await fetch(`${FADR_API_BASE_URL}/assets/upload2`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -26,37 +10,39 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
     },
     body: JSON.stringify({
       name: fileName,
-      extension: 'mp3',
+      extension: fileName.split('.').pop() || 'mp3',
     }),
   });
 
-  if (!uploadResponse.ok) {
-    console.error('Failed to get upload URL:', await uploadResponse.text());
-    throw new Error('Failed to get upload URL');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Failed to get upload URL:', errorText);
+    throw new Error(`Failed to get upload URL: ${errorText}`);
   }
 
-  return uploadResponse.json();
+  return response.json();
 }
 
 export async function uploadFileToFadr(uploadUrl: string, audioFile: ArrayBuffer) {
-  console.log('Uploading file to FADR');
-  const uploadFileResponse = await fetch(uploadUrl, {
+  console.log('Uploading file to FADR URL:', uploadUrl);
+  const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
-      'Content-Type': 'audio/mp3',
+      'Content-Type': 'audio/mpeg',
     },
     body: audioFile,
   });
 
-  if (!uploadFileResponse.ok) {
-    console.error('Failed to upload file:', await uploadFileResponse.text());
-    throw new Error('Failed to upload file');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Failed to upload file:', errorText);
+    throw new Error(`Failed to upload file: ${errorText}`);
   }
 }
 
 export async function createFadrAsset(apiKey: string, fileName: string, s3Path: string) {
-  console.log('Creating FADR asset');
-  const createAssetResponse = await fetch('https://api.fadr.com/assets', {
+  console.log('Creating FADR asset for:', fileName);
+  const response = await fetch(`${FADR_API_BASE_URL}/assets`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -64,23 +50,24 @@ export async function createFadrAsset(apiKey: string, fileName: string, s3Path: 
     },
     body: JSON.stringify({
       name: fileName,
-      extension: 'mp3',
+      extension: fileName.split('.').pop() || 'mp3',
       group: 'song-analysis',
       s3Path,
     }),
   });
 
-  if (!createAssetResponse.ok) {
-    console.error('Failed to create asset:', await createAssetResponse.text());
-    throw new Error('Failed to create asset');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Failed to create asset:', errorText);
+    throw new Error(`Failed to create asset: ${errorText}`);
   }
 
-  return createAssetResponse.json();
+  return response.json();
 }
 
-export async function createAnalysisTask(apiKey: string, assetId: string): Promise<FadrResponse> {
-  console.log('Creating analysis task');
-  const createTaskResponse = await fetch('https://api.fadr.com/assets/analyze/stem', {
+export async function createAnalysisTask(apiKey: string, assetId: string) {
+  console.log('Creating analysis task for asset:', assetId);
+  const response = await fetch(`${FADR_API_BASE_URL}/assets/analyze/stem`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -91,41 +78,46 @@ export async function createAnalysisTask(apiKey: string, assetId: string): Promi
     }),
   });
 
-  if (!createTaskResponse.ok) {
-    console.error('Failed to create task:', await createTaskResponse.text());
-    throw new Error('Failed to create analysis task');
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Failed to create analysis task:', errorText);
+    throw new Error(`Failed to create analysis task: ${errorText}`);
   }
 
-  return createTaskResponse.json();
+  return response.json();
 }
 
-export async function pollTaskStatus(apiKey: string, taskId: string): Promise<FadrResponse> {
-  console.log('Polling for task completion');
+export async function pollTaskStatus(apiKey: string, taskId: string) {
+  console.log('Starting to poll task status for:', taskId);
   let attempts = 0;
-  const maxAttempts = 12; // 1 minute total waiting time
-
+  const maxAttempts = 60; // 5 minutes total waiting time
+  
   while (attempts < maxAttempts) {
+    console.log(`Polling attempt ${attempts + 1} of ${maxAttempts}`);
     await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between polls
     
-    const taskStatusResponse = await fetch(`https://api.fadr.com/tasks/${taskId}`, {
+    const response = await fetch(`${FADR_API_BASE_URL}/tasks/${taskId}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
       },
     });
 
-    if (!taskStatusResponse.ok) {
-      console.error('Failed to check task status:', await taskStatusResponse.text());
-      throw new Error('Failed to check task status');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to check task status:', errorText);
+      throw new Error(`Failed to check task status: ${errorText}`);
     }
 
-    const response: FadrResponse = await taskStatusResponse.json();
+    const data = await response.json();
+    console.log('Poll response:', data);
     
-    if (response.task.status.complete) {
-      return response;
+    if (data.task.status.complete) {
+      console.log('Task completed successfully');
+      return data;
     }
     
     attempts++;
   }
 
-  throw new Error('Analysis timed out');
+  throw new Error('Analysis timed out after 5 minutes');
 }
