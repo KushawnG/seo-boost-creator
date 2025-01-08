@@ -1,48 +1,17 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent } from "@/components/ui/card";
+import { AnalysisForm } from "@/components/dashboard/AnalysisForm";
+import { AnalysisList } from "@/components/dashboard/AnalysisList";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { Home, List, User, CreditCard, Settings, LogOut } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useState } from "react";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("home");
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/auth");
-      }
-    };
-    checkAuth();
-
-    // Check for pending analysis
-    const pendingUrl = localStorage.getItem('pendingAnalysis');
-    const pendingFile = localStorage.getItem('pendingAnalysisFile');
-    
-    if (pendingUrl || pendingFile) {
-      // Clear the pending analysis
-      localStorage.removeItem('pendingAnalysis');
-      localStorage.removeItem('pendingAnalysisFile');
-      
-      // Show toast notification
-      toast({
-        title: "Analysis Started",
-        description: pendingUrl 
-          ? `Analyzing URL: ${pendingUrl}` 
-          : `Analyzing file: ${pendingFile}`,
-      });
-      
-      // Here you would trigger the actual analysis
-      console.log("Starting analysis for:", pendingUrl || pendingFile);
-    }
-  }, [navigate, toast]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -58,11 +27,8 @@ const Dashboard = () => {
       case "settings":
         return (
           <Card>
-            <CardHeader>
-              <CardTitle>Settings</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
+            <CardContent className="p-6">
+              <div className="space-y-4">
                 <h3 className="text-lg font-medium">Account</h3>
                 <Button 
                   variant="destructive" 
@@ -81,49 +47,11 @@ const Dashboard = () => {
           <>
             <Card className="mb-8">
               <CardContent className="p-6">
-                <div className="space-y-4">
-                  <Input placeholder="Enter YouTube URL..." className="w-full" />
-                  <div className="text-center">OR</div>
-                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center">
-                    <p className="text-gray-500">Click to upload an audio file</p>
-                  </div>
-                  <div className="flex justify-center">
-                    <Button size="lg">Analyze</Button>
-                  </div>
-                </div>
+                <AnalysisForm />
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  <div className="flex items-center gap-2">
-                    <List size={20} />
-                    Track History
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg mb-4">
-                  <div>
-                    <div className="font-semibold">Title</div>
-                    <div>Example Title</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold">Key</div>
-                    <div>A#m</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold">BPM</div>
-                    <div>120</div>
-                  </div>
-                  <div>
-                    <div className="font-semibold">Chords</div>
-                    <div>A#m-E#m-G#m-C#m</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <AnalysisList />
           </>
         );
     }
@@ -138,7 +66,7 @@ const Dashboard = () => {
         </div>
         
         <div className="space-y-2">
-          <div className="text-sm font-semibold text-gray-500 mb-4">ADMIN</div>
+          <div className="text-sm font-semibold text-gray-500 mb-4">MENU</div>
           <Button 
             variant={activeTab === "home" ? "default" : "ghost"} 
             className="w-full justify-start gap-2"
@@ -185,9 +113,7 @@ const Dashboard = () => {
       {/* Main Content */}
       <div className="ml-64 p-8">
         <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-2xl font-bold">Hi {username || "User"}</h1>
-          </div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
           <div className="flex items-center gap-4">
             <div>Credits: <span className="font-semibold">5</span> Remaining</div>
             <Button>Free Plan</Button>
