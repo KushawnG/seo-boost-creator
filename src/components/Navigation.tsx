@@ -1,8 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { Music } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Navigation = () => {
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-b z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -27,8 +35,9 @@ export const Navigation = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost">Log In</Button>
-            <Button>Sign Up</Button>
+            <Button variant="ghost" onClick={handleLogout}>
+              Log Out
+            </Button>
           </div>
         </div>
       </div>
