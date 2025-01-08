@@ -4,6 +4,7 @@ import { CreditCard, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +16,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+type PaymentMethod = Database['public']['Tables']['payment_methods']['Row']
+type Subscription = Database['public']['Tables']['subscriptions']['Row']
 
 export const BillingTab = () => {
   const { toast } = useToast();
@@ -32,7 +36,7 @@ export const BillingTab = () => {
         .order('is_default', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data as PaymentMethod[];
     }
   });
 
@@ -49,7 +53,7 @@ export const BillingTab = () => {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Subscription;
     }
   });
 
@@ -129,7 +133,7 @@ export const BillingTab = () => {
                     <div>
                       <p className="font-medium capitalize">{subscription.plan_type} Plan</p>
                       <p className="text-sm text-gray-600">
-                        Next billing date: {new Date(subscription.current_period_end).toLocaleDateString()}
+                        Next billing date: {new Date(subscription.current_period_end || '').toLocaleDateString()}
                       </p>
                     </div>
                     <p className="font-medium">

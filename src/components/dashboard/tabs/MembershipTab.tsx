@@ -5,6 +5,9 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import type { Database } from "@/integrations/supabase/types";
+
+type Subscription = Database['public']['Tables']['subscriptions']['Row']
 
 export const MembershipTab = () => {
   const { toast } = useToast();
@@ -23,7 +26,7 @@ export const MembershipTab = () => {
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Subscription;
     }
   });
 
