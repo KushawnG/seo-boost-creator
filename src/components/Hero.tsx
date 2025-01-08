@@ -1,12 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Music } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Hero = () => {
   const [url, setUrl] = useState("");
+  const navigate = useNavigate();
   
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      navigate("/auth");
+      return;
+    }
+    
     // Handle analysis logic here
     console.log("Analyzing:", url);
   };
