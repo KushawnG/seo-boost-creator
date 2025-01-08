@@ -11,11 +11,19 @@ export const Hero = () => {
     console.log("Analyzing:", url);
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
       <div className="space-y-6 max-w-3xl">
-        <div className="flex justify-center mb-6">
-          <Music className="h-16 w-16 text-primary" />
+        <div className="flex justify-center mb-6 cursor-pointer" onClick={scrollToTop}>
+          <img
+            src="Chord-Finder-Ai-Logo-Icon-Only.png"
+            alt="Chord Finder AI"
+            className="h-16 w-16"
+          />
         </div>
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight">
           Chord Finder AI
