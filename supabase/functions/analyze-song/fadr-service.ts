@@ -71,6 +71,38 @@ export async function createFadrAsset(apiKey: string, fileName: string, s3Path: 
   return data;
 }
 
+export async function waitForAssetUpload(apiKey: string, assetId: string, maxAttempts = 30) {
+  console.log('Waiting for asset upload completion:', assetId);
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    const response = await fetch(`${FADR_API_BASE_URL}/assets/${assetId}`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Failed to check asset status:', errorText);
+      throw new Error(`Failed to check asset status: ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('Asset status check response:', data);
+    
+    if (data.asset?.uploadComplete) {
+      console.log('Asset upload completed');
+      return data.asset;
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds between checks
+    attempts++;
+  }
+
+  throw new Error('Asset upload completion timeout');
+}
+
 export async function createAnalysisTask(apiKey: string, assetId: string) {
   console.log('Creating analysis task for asset:', assetId);
   const response = await fetch(`${FADR_API_BASE_URL}/assets/analyze/stem`, {
@@ -120,12 +152,28 @@ export async function pollTaskStatus(apiKey: string, taskId: string) {
     console.log('Poll response:', data);
     
     if (data.task?.status?.complete) {
-      if (!data.asset) {
-        console.error('Task completed but no asset data found:', data);
-        throw new Error('Task completed but asset data is missing');
+      // Get the updated asset data after task completion
+      const assetResponse = await fetch(`${FADR_API_BASE_URL}/assets/${data.task.asset}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+      
+      if (!assetResponse.ok) {
+        const errorText = await assetResponse.text();
+        console.error('Failed to get final asset data:', errorText);
+        throw new Error(`Failed to get final asset data: ${errorText}`);
       }
-      console.log('Task completed successfully');
-      return data;
+      
+      const assetData = await assetResponse.json();
+      console.log('Final asset data:', assetData);
+      
+      if (!assetData.asset) {
+        console.error('No asset data in final response:', assetData);
+        throw new Error('Missing asset data in final response');
+      }
+      
+      return assetData;
     }
     
     attempts++;
