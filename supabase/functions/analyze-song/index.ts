@@ -8,6 +8,7 @@ import {
   createAnalysisTask,
   pollTaskStatus
 } from './fadr-service.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -17,8 +18,8 @@ serve(async (req) => {
 
   try {
     console.log('Starting analyze-song function');
-    const { url, filePath } = await req.json();
-    console.log('Received request with:', { url, filePath });
+    const { filePath } = await req.json();
+    console.log('Received request with filePath:', filePath);
 
     const apiKey = Deno.env.get('FADR_API_KEY');
     if (!apiKey) {
@@ -26,9 +27,28 @@ serve(async (req) => {
       throw new Error('API key not configured');
     }
 
-    // For now, we'll focus on file uploads
-    if (!filePath) {
-      throw new Error('File path is required');
+    // Create Supabase client to get the file
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Supabase credentials not configured');
+    }
+    
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Download file from Supabase storage
+    console.log('Downloading file from Supabase storage:', filePath);
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('audio_files')
+      .download(filePath);
+
+    if (downloadError) {
+      console.error('Error downloading file:', downloadError);
+      throw new Error(`Failed to download file: ${downloadError.message}`);
+    }
+
+    if (!fileData) {
+      throw new Error('No file data received from storage');
     }
 
     const fileName = filePath.split('/').pop() || 'unknown';
@@ -39,11 +59,9 @@ serve(async (req) => {
       const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
       console.log('Got FADR upload URL');
 
-      if (audioFile) {
-        console.log('Uploading file to FADR');
-        await uploadFileToFadr(uploadUrl, audioFile);
-        console.log('File uploaded to FADR successfully');
-      }
+      console.log('Uploading file to FADR');
+      await uploadFileToFadr(uploadUrl, fileData);
+      console.log('File uploaded to FADR successfully');
 
       console.log('Creating FADR asset');
       const { asset } = await createFadrAsset(apiKey, fileName, s3Path);

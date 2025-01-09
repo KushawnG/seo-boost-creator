@@ -2,6 +2,8 @@ const FADR_API_BASE_URL = 'https://api.fadr.com';
 
 export async function getFadrUploadUrl(apiKey: string, fileName: string) {
   console.log('Requesting upload URL from FADR for:', fileName);
+  const extension = fileName.split('.').pop() || 'mp3';
+  
   const response = await fetch(`${FADR_API_BASE_URL}/assets/upload2`, {
     method: 'POST',
     headers: {
@@ -10,7 +12,7 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
     },
     body: JSON.stringify({
       name: fileName,
-      extension: fileName.split('.').pop() || 'mp3',
+      extension,
     }),
   });
 
@@ -25,14 +27,14 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
   return data;
 }
 
-export async function uploadFileToFadr(uploadUrl: string, audioFile: ArrayBuffer) {
+export async function uploadFileToFadr(uploadUrl: string, fileData: Blob) {
   console.log('Uploading file to FADR URL:', uploadUrl);
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
       'Content-Type': 'audio/mpeg',
     },
-    body: audioFile,
+    body: fileData,
   });
 
   if (!response.ok) {
