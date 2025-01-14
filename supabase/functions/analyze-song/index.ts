@@ -12,17 +12,19 @@ import {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Cache-Control': 'no-store, no-cache, must-revalidate'
 }
 
 const TIMEOUT = 600000; // 10 minutes timeout
 
 serve(async (req) => {
+  const startTime = Date.now();
+  console.log('Starting analyze-song function');
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-
-  const startTime = Date.now();
 
   try {
     const { url, filePath } = await req.json();
@@ -93,7 +95,10 @@ serve(async (req) => {
       }
 
       console.log('Waiting for asset upload completion');
-      const completedAsset = await waitForAssetUpload(apiKey, asset._id);
+      const completedAsset = await Promise.race([
+        waitForAssetUpload(apiKey, asset._id),
+        timeoutPromise
+      ]);
       console.log('Asset upload completed:', completedAsset);
 
       console.log('Creating analysis task');
@@ -126,8 +131,7 @@ serve(async (req) => {
       return new Response(JSON.stringify(analysisData), {
         headers: { 
           ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate'
+          'Content-Type': 'application/json'
         },
         status: 200,
       });
@@ -145,8 +149,7 @@ serve(async (req) => {
       {
         headers: { 
           ...corsHeaders, 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate'
+          'Content-Type': 'application/json'
         },
         status: 500,
       }

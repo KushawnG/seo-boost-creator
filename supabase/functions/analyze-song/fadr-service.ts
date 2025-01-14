@@ -11,7 +11,7 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      name: fileName,
+      filename: fileName,
       extension,
     }),
   });
@@ -29,21 +29,43 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
 
 export async function uploadFileToFadr(uploadUrl: string, fileData: Blob) {
   console.log('Uploading file to FADR URL:', uploadUrl);
-  const response = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'audio/mpeg',
-    },
-    body: fileData,
+  
+  // Create a new XMLHttpRequest to handle the upload with progress tracking
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const percentage = (event.loaded / event.total) * 100;
+        console.log(`Upload progress: ${Math.round(percentage)}%`);
+      }
+    });
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200) {
+        console.log('File upload successful');
+        resolve(xhr.response);
+      } else {
+        console.error('Upload failed with status:', xhr.status);
+        reject(new Error(`Upload failed with status: ${xhr.status}`));
+      }
+    });
+
+    xhr.addEventListener('error', () => {
+      console.error('Upload failed');
+      reject(new Error('Upload failed'));
+    });
+
+    xhr.addEventListener('timeout', () => {
+      console.error('Upload timed out');
+      reject(new Error('Upload timed out'));
+    });
+
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', 'audio/mpeg');
+    xhr.timeout = 300000; // 5 minutes timeout
+    xhr.send(fileData);
   });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('Failed to upload file:', errorText);
-    throw new Error(`Failed to upload file: ${errorText}`);
-  }
-
-  console.log('File upload successful');
 }
 
 export async function createFadrAsset(apiKey: string, fileName: string, s3Path: string) {
@@ -102,7 +124,7 @@ export async function waitForAssetUpload(apiKey: string, assetId: string, maxAtt
     attempts++;
   }
 
-  throw new Error('Asset upload completion timeout - please try with a smaller file or check FADR service status');
+  throw new Error('Asset upload completion timeout - please try with a smaller file');
 }
 
 export async function createAnalysisTask(apiKey: string, assetId: string) {
