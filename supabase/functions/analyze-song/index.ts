@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { corsHeaders } from './cors.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { 
   getFadrUploadUrl, 
   uploadFileToFadr, 
@@ -8,7 +8,11 @@ import {
   createAnalysisTask,
   pollTaskStatus
 } from './fadr-service.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -17,17 +21,15 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Starting analyze-song function');
-    const { filePath } = await req.json();
-    console.log('Received request with filePath:', filePath);
+    const { url, filePath } = await req.json();
+    console.log('Received request:', { url, filePath });
 
     const apiKey = Deno.env.get('FADR_API_KEY');
     if (!apiKey) {
-      console.error('FADR_API_KEY not found');
-      throw new Error('API key not configured');
+      throw new Error('FADR API key not configured');
     }
 
-    // Create Supabase client to get the file
+    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!supabaseUrl || !supabaseKey) {
@@ -35,91 +37,89 @@ serve(async (req) => {
     }
     
     const supabase = createClient(supabaseUrl, supabaseKey);
+    let audioData: Blob;
+    let fileName: string;
 
-    // Download file from Supabase storage
-    console.log('Downloading file from Supabase storage:', filePath);
-    const { data: fileData, error: downloadError } = await supabase.storage
-      .from('audio_files')
-      .download(filePath);
+    if (filePath) {
+      console.log('Downloading file from storage:', filePath);
+      const { data, error: downloadError } = await supabase.storage
+        .from('audio_files')
+        .download(filePath);
 
-    if (downloadError) {
-      console.error('Error downloading file:', downloadError);
-      throw new Error(`Failed to download file: ${downloadError.message}`);
-    }
-
-    if (!fileData) {
-      throw new Error('No file data received from storage');
-    }
-
-    const fileName = filePath.split('/').pop() || 'unknown';
-    console.log('Processing file:', fileName);
-
-    try {
-      console.log('Getting FADR upload URL');
-      const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
-      console.log('Got FADR upload URL');
-
-      console.log('Uploading file to FADR');
-      await uploadFileToFadr(uploadUrl, fileData);
-      console.log('File uploaded to FADR successfully');
-
-      console.log('Creating FADR asset');
-      const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
-      if (!asset || !asset._id) {
-        console.error('Invalid asset response:', asset);
-        throw new Error('Failed to create asset: Invalid response');
-      }
-      console.log('FADR asset created:', asset);
-
-      // Wait for the asset upload to complete
-      console.log('Waiting for asset upload to complete');
-      const completedAsset = await waitForAssetUpload(apiKey, asset._id);
-      console.log('Asset upload completed:', completedAsset);
-
-      console.log('Creating analysis task');
-      const initialTaskResponse = await createAnalysisTask(apiKey, asset._id);
-      if (!initialTaskResponse.task?._id) {
-        console.error('Invalid task response:', initialTaskResponse);
-        throw new Error('Failed to create analysis task: Invalid response');
-      }
-      console.log('Analysis task created:', initialTaskResponse);
-
-      console.log('Polling for task completion');
-      const finalResponse = await pollTaskStatus(apiKey, initialTaskResponse.task._id);
-      console.log('Analysis complete, results:', finalResponse);
-
-      if (!finalResponse?.asset?.metaData) {
-        console.error('Invalid final response:', finalResponse);
-        throw new Error('Invalid response structure: missing metadata');
+      if (downloadError) {
+        console.error('Download error:', downloadError);
+        throw new Error(`Failed to download file: ${downloadError.message}`);
       }
 
-      const analysisData = {
-        key: finalResponse.asset.metaData.key || 'Unknown',
-        bpm: finalResponse.asset.metaData.tempo || 0,
-        chords: finalResponse.asset.stems || [],
-      };
+      if (!data) {
+        throw new Error('No file data received from storage');
+      }
 
-      console.log('Extracted analysis data:', analysisData);
-
-      return new Response(
-        JSON.stringify(analysisData),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        },
-      );
-    } catch (fadrError) {
-      console.error('FADR API error:', fadrError);
-      return new Response(
-        JSON.stringify({ error: 'FADR API error', details: fadrError.message }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
-      );
+      audioData = data;
+      fileName = filePath.split('/').pop() || 'unknown.mp3';
+    } else if (url) {
+      console.log('Downloading file from URL:', url);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch URL: ${response.statusText}`);
+      }
+      audioData = await response.blob();
+      fileName = url.split('/').pop() || 'youtube-audio.mp3';
+    } else {
+      throw new Error('Either URL or file path must be provided');
     }
+
+    console.log('Getting FADR upload URL for:', fileName);
+    const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
+    
+    console.log('Uploading file to FADR');
+    await uploadFileToFadr(uploadUrl, audioData);
+    
+    console.log('Creating FADR asset');
+    const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
+    if (!asset?._id) {
+      throw new Error('Failed to create asset: Invalid response');
+    }
+
+    console.log('Waiting for asset upload completion');
+    const completedAsset = await waitForAssetUpload(apiKey, asset._id);
+    console.log('Asset upload completed:', completedAsset);
+
+    console.log('Creating analysis task');
+    const taskResponse = await createAnalysisTask(apiKey, asset._id);
+    if (!taskResponse?.task?._id) {
+      throw new Error('Failed to create analysis task: Invalid response');
+    }
+
+    console.log('Polling for task completion');
+    const finalResponse = await pollTaskStatus(apiKey, taskResponse.task._id);
+    console.log('Analysis complete:', finalResponse);
+
+    if (!finalResponse?.asset?.metaData) {
+      throw new Error('Invalid response structure: missing metadata');
+    }
+
+    const analysisData = {
+      key: finalResponse.asset.metaData.key || 'Unknown',
+      bpm: finalResponse.asset.metaData.tempo || 0,
+      chords: finalResponse.asset.stems || [],
+    };
+
+    return new Response(JSON.stringify(analysisData), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Error in analyze-song function:', error);
     return new Response(
-      JSON.stringify({ error: 'An unexpected error occurred', details: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      JSON.stringify({
+        error: error.name || 'Error',
+        details: error.message
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
     );
   }
 });
