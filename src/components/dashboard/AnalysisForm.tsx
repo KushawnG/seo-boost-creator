@@ -116,30 +116,44 @@ export const AnalysisForm = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("User not authenticated");
 
-      // Upload file to storage
+      // Generate file path
       const filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
       
-      // Create a readable stream from the file
-      const fileStream = new ReadableStream({
-        start(controller) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            controller.enqueue(new Uint8Array(reader.result as ArrayBuffer));
-            controller.close();
-          };
-          reader.readAsArrayBuffer(file);
-        }
-      });
-
-      // Upload the file and track progress manually
-      const { error: uploadError } = await supabase.storage
+      // Get the presigned URL for upload
+      const { data: { signedUrl }, error: signedUrlError } = await supabase.storage
         .from('audio_files')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
+        .createSignedUploadUrl(filePath);
+
+      if (signedUrlError) throw signedUrlError;
+
+      // Create XHR request for upload with progress tracking
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percentage = (event.loaded / event.total) * 100;
+            setUploadProgress(Math.round(percentage));
+            console.log(`Upload progress: ${percentage}%`);
+          }
         });
 
-      if (uploadError) throw uploadError;
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            resolve(xhr.response);
+          } else {
+            reject(new Error(`Upload failed with status: ${xhr.status}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Upload failed'));
+        });
+
+        xhr.open('PUT', signedUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
 
       console.log('File uploaded successfully');
 
