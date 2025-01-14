@@ -6,7 +6,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const ALLOWED_AUDIO_TYPES = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/aac', 'audio/ogg'];
+const ALLOWED_AUDIO_TYPES = [
+  'audio/mpeg', // .mp3
+  'audio/wav',  // .wav
+  'audio/x-m4a', // .m4a
+  'audio/aac',  // .aac
+  'audio/ogg'   // .ogg
+];
+
+const ALLOWED_FILE_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg'];
 
 export const AnalysisForm = () => {
   const [url, setUrl] = useState("");
@@ -17,8 +25,22 @@ export const AnalysisForm = () => {
   const validateFile = (file: File) => {
     if (!file) return false;
 
-    // Check file type
-    if (!ALLOWED_AUDIO_TYPES.includes(file.type)) {
+    // Check file extension
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+    const isValidExtension = ALLOWED_FILE_EXTENSIONS.includes(fileExtension);
+    
+    // Check MIME type
+    const isValidMimeType = ALLOWED_AUDIO_TYPES.includes(file.type);
+
+    console.log('File validation:', {
+      name: file.name,
+      type: file.type,
+      extension: fileExtension,
+      isValidExtension,
+      isValidMimeType
+    });
+
+    if (!isValidExtension && !isValidMimeType) {
       toast({
         title: "Invalid File Type",
         description: "Please upload an audio file (MP3, WAV, M4A, AAC, or OGG)",
