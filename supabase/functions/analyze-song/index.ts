@@ -78,53 +78,63 @@ serve(async (req) => {
       throw new Error('Either URL or file path must be provided');
     }
 
-    console.log('Getting FADR upload URL for:', fileName);
-    const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
-    
-    console.log('Uploading file to FADR');
-    await uploadFileToFadr(uploadUrl, audioData);
-    
-    console.log('Creating FADR asset');
-    const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
-    if (!asset?._id) {
-      throw new Error('Failed to create asset: Invalid response');
+    // Wrap all FADR API calls in try-catch blocks
+    try {
+      console.log('Getting FADR upload URL for:', fileName);
+      const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
+      
+      console.log('Uploading file to FADR');
+      await uploadFileToFadr(uploadUrl, audioData);
+      
+      console.log('Creating FADR asset');
+      const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
+      if (!asset?._id) {
+        throw new Error('Failed to create asset: Invalid response');
+      }
+
+      console.log('Waiting for asset upload completion');
+      const completedAsset = await waitForAssetUpload(apiKey, asset._id);
+      console.log('Asset upload completed:', completedAsset);
+
+      console.log('Creating analysis task');
+      const taskResponse = await createAnalysisTask(apiKey, asset._id);
+      if (!taskResponse?.task?._id) {
+        throw new Error('Failed to create analysis task: Invalid response');
+      }
+
+      console.log('Polling for task completion');
+      const finalResponse = await Promise.race([
+        pollTaskStatus(apiKey, taskResponse.task._id),
+        timeoutPromise
+      ]);
+      
+      console.log('Analysis complete:', finalResponse);
+
+      if (!finalResponse?.asset?.metaData) {
+        throw new Error('Invalid response structure: missing metadata');
+      }
+
+      const analysisData = {
+        key: finalResponse.asset.metaData.key || 'Unknown',
+        bpm: finalResponse.asset.metaData.tempo || 0,
+        chords: finalResponse.asset.stems || [],
+      };
+
+      const executionTime = Date.now() - startTime;
+      console.log(`Total execution time: ${executionTime}ms`);
+
+      return new Response(JSON.stringify(analysisData), {
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
+        },
+        status: 200,
+      });
+    } catch (fadrError) {
+      console.error('FADR API error:', fadrError);
+      throw new Error(`FADR API error: ${fadrError.message}`);
     }
-
-    console.log('Waiting for asset upload completion');
-    const completedAsset = await waitForAssetUpload(apiKey, asset._id);
-    console.log('Asset upload completed:', completedAsset);
-
-    console.log('Creating analysis task');
-    const taskResponse = await createAnalysisTask(apiKey, asset._id);
-    if (!taskResponse?.task?._id) {
-      throw new Error('Failed to create analysis task: Invalid response');
-    }
-
-    console.log('Polling for task completion');
-    const finalResponse = await Promise.race([
-      pollTaskStatus(apiKey, taskResponse.task._id),
-      timeoutPromise
-    ]);
-    
-    console.log('Analysis complete:', finalResponse);
-
-    if (!finalResponse?.asset?.metaData) {
-      throw new Error('Invalid response structure: missing metadata');
-    }
-
-    const analysisData = {
-      key: finalResponse.asset.metaData.key || 'Unknown',
-      bpm: finalResponse.asset.metaData.tempo || 0,
-      chords: finalResponse.asset.stems || [],
-    };
-
-    const executionTime = Date.now() - startTime;
-    console.log(`Total execution time: ${executionTime}ms`);
-
-    return new Response(JSON.stringify(analysisData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
   } catch (error) {
     console.error('Error in analyze-song function:', error);
     return new Response(
@@ -133,7 +143,11 @@ serve(async (req) => {
         details: error.message
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
+        },
         status: 500,
       }
     );
