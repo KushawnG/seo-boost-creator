@@ -14,11 +14,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const TIMEOUT = 300000; // 5 minutes timeout
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const startTime = Date.now();
 
   try {
     const { url, filePath } = await req.json();
@@ -39,6 +43,11 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     let audioData: Blob;
     let fileName: string;
+
+    // Set up timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Operation timed out')), TIMEOUT);
+    });
 
     if (filePath) {
       console.log('Downloading file from storage:', filePath);
@@ -92,7 +101,11 @@ serve(async (req) => {
     }
 
     console.log('Polling for task completion');
-    const finalResponse = await pollTaskStatus(apiKey, taskResponse.task._id);
+    const finalResponse = await Promise.race([
+      pollTaskStatus(apiKey, taskResponse.task._id),
+      timeoutPromise
+    ]);
+    
     console.log('Analysis complete:', finalResponse);
 
     if (!finalResponse?.asset?.metaData) {
@@ -104,6 +117,9 @@ serve(async (req) => {
       bpm: finalResponse.asset.metaData.tempo || 0,
       chords: finalResponse.asset.stems || [],
     };
+
+    const executionTime = Date.now() - startTime;
+    console.log(`Total execution time: ${executionTime}ms`);
 
     return new Response(JSON.stringify(analysisData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
