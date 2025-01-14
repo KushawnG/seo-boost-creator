@@ -73,7 +73,7 @@ export async function createFadrAsset(apiKey: string, fileName: string, s3Path: 
   return data;
 }
 
-export async function waitForAssetUpload(apiKey: string, assetId: string, maxAttempts = 30) {
+export async function waitForAssetUpload(apiKey: string, assetId: string, maxAttempts = 60) {
   console.log('Waiting for asset upload completion:', assetId);
   let attempts = 0;
   
@@ -91,18 +91,18 @@ export async function waitForAssetUpload(apiKey: string, assetId: string, maxAtt
     }
 
     const data = await response.json();
-    console.log('Asset status check response:', data);
+    console.log(`Asset status check response (attempt ${attempts + 1}/${maxAttempts}):`, data);
     
     if (data.asset?.uploadComplete) {
       console.log('Asset upload completed');
       return data.asset;
     }
     
-    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds between checks
+    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between checks
     attempts++;
   }
 
-  throw new Error('Asset upload completion timeout');
+  throw new Error('Asset upload completion timeout - please try with a smaller file or check FADR service status');
 }
 
 export async function createAnalysisTask(apiKey: string, assetId: string) {
@@ -132,7 +132,7 @@ export async function createAnalysisTask(apiKey: string, assetId: string) {
 export async function pollTaskStatus(apiKey: string, taskId: string) {
   console.log('Starting to poll task status for:', taskId);
   let attempts = 0;
-  const maxAttempts = 60; // 5 minutes total waiting time
+  const maxAttempts = 120; // 10 minutes total waiting time
   
   while (attempts < maxAttempts) {
     console.log(`Polling attempt ${attempts + 1} of ${maxAttempts}`);
@@ -181,5 +181,5 @@ export async function pollTaskStatus(apiKey: string, taskId: string) {
     attempts++;
   }
 
-  throw new Error('Analysis timed out after 5 minutes');
+  throw new Error('Analysis timed out after 10 minutes - please try with a smaller file');
 }

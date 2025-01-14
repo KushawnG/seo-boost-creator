@@ -14,7 +14,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const TIMEOUT = 300000; // 5 minutes timeout
+const TIMEOUT = 600000; // 10 minutes timeout
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -46,7 +46,7 @@ serve(async (req) => {
 
     // Set up timeout
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Operation timed out')), TIMEOUT);
+      setTimeout(() => reject(new Error('Operation timed out - please try with a smaller file')), TIMEOUT);
     });
 
     if (filePath) {
