@@ -116,7 +116,7 @@ export const AnalysisForm = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("User not authenticated");
 
-      // Upload file to storage with progress tracking
+      // Upload file to storage
       const filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
       
       // Create a readable stream from the file
@@ -131,14 +131,12 @@ export const AnalysisForm = () => {
         }
       });
 
+      // Upload the file and track progress manually
       const { error: uploadError } = await supabase.storage
         .from('audio_files')
         .upload(filePath, file, {
-          onUploadProgress: (progress) => {
-            const percentage = (progress.loaded / progress.total) * 100;
-            setUploadProgress(Math.round(percentage));
-            console.log(`Upload progress: ${percentage}%`);
-          }
+          cacheControl: '3600',
+          upsert: false
         });
 
       if (uploadError) throw uploadError;
