@@ -1,4 +1,6 @@
 const FADR_API_BASE_URL = 'https://api.fadr.com';
+const MAX_POLLING_ATTEMPTS = 180; // 15 minutes with 5-second intervals
+const UPLOAD_TIMEOUT = 900000; // 15 minutes
 
 export async function getFadrUploadUrl(apiKey: string, fileName: string) {
   console.log('Requesting upload URL from FADR for:', fileName);
@@ -30,7 +32,6 @@ export async function getFadrUploadUrl(apiKey: string, fileName: string) {
 export async function uploadFileToFadr(uploadUrl: string, fileData: Blob) {
   console.log('Uploading file to FADR URL:', uploadUrl);
   
-  // Create a new XMLHttpRequest to handle the upload with progress tracking
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     
@@ -63,7 +64,7 @@ export async function uploadFileToFadr(uploadUrl: string, fileData: Blob) {
 
     xhr.open('PUT', uploadUrl);
     xhr.setRequestHeader('Content-Type', 'audio/mpeg');
-    xhr.timeout = 300000; // 5 minutes timeout
+    xhr.timeout = UPLOAD_TIMEOUT;
     xhr.send(fileData);
   });
 }
@@ -95,11 +96,11 @@ export async function createFadrAsset(apiKey: string, fileName: string, s3Path: 
   return data;
 }
 
-export async function waitForAssetUpload(apiKey: string, assetId: string, maxAttempts = 60) {
+export async function waitForAssetUpload(apiKey: string, assetId: string) {
   console.log('Waiting for asset upload completion:', assetId);
   let attempts = 0;
   
-  while (attempts < maxAttempts) {
+  while (attempts < MAX_POLLING_ATTEMPTS) {
     const response = await fetch(`${FADR_API_BASE_URL}/assets/${assetId}`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -113,7 +114,7 @@ export async function waitForAssetUpload(apiKey: string, assetId: string, maxAtt
     }
 
     const data = await response.json();
-    console.log(`Asset status check response (attempt ${attempts + 1}/${maxAttempts}):`, data);
+    console.log(`Asset status check response (attempt ${attempts + 1}/${MAX_POLLING_ATTEMPTS}):`, data);
     
     if (data.asset?.uploadComplete) {
       console.log('Asset upload completed');
@@ -154,10 +155,9 @@ export async function createAnalysisTask(apiKey: string, assetId: string) {
 export async function pollTaskStatus(apiKey: string, taskId: string) {
   console.log('Starting to poll task status for:', taskId);
   let attempts = 0;
-  const maxAttempts = 120; // 10 minutes total waiting time
   
-  while (attempts < maxAttempts) {
-    console.log(`Polling attempt ${attempts + 1} of ${maxAttempts}`);
+  while (attempts < MAX_POLLING_ATTEMPTS) {
+    console.log(`Polling attempt ${attempts + 1} of ${MAX_POLLING_ATTEMPTS}`);
     await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds between polls
     
     const response = await fetch(`${FADR_API_BASE_URL}/tasks/${taskId}`, {
@@ -176,7 +176,6 @@ export async function pollTaskStatus(apiKey: string, taskId: string) {
     console.log('Poll response:', data);
     
     if (data.task?.status?.complete) {
-      // Get the updated asset data after task completion
       const assetResponse = await fetch(`${FADR_API_BASE_URL}/assets/${data.task.asset}`, {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -203,5 +202,5 @@ export async function pollTaskStatus(apiKey: string, taskId: string) {
     attempts++;
   }
 
-  throw new Error('Analysis timed out after 10 minutes - please try with a smaller file');
+  throw new Error('Analysis timed out - please try with a smaller file');
 }

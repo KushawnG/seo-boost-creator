@@ -15,7 +15,24 @@ const corsHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate'
 }
 
-const TIMEOUT = 600000; // 10 minutes timeout
+// Increased timeout to 15 minutes for large files
+const TIMEOUT = 900000; 
+
+// Helper function to create error responses
+const createErrorResponse = (error: Error, status = 500) => {
+  console.error('Error in analyze-song function:', error);
+  return new Response(
+    JSON.stringify({
+      error: error.name || 'Error',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status
+    }
+  );
+};
 
 serve(async (req) => {
   const startTime = Date.now();
@@ -32,14 +49,14 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get('FADR_API_KEY');
     if (!apiKey) {
-      throw new Error('FADR API key not configured');
+      return createErrorResponse(new Error('FADR API key not configured'), 500);
     }
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Supabase credentials not configured');
+      return createErrorResponse(new Error('Supabase credentials not configured'), 500);
     }
     
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -59,11 +76,11 @@ serve(async (req) => {
 
       if (downloadError) {
         console.error('Download error:', downloadError);
-        throw new Error(`Failed to download file: ${downloadError.message}`);
+        return createErrorResponse(new Error(`Failed to download file: ${downloadError.message}`), 400);
       }
 
       if (!data) {
-        throw new Error('No file data received from storage');
+        return createErrorResponse(new Error('No file data received from storage'), 400);
       }
 
       audioData = data;
@@ -72,12 +89,12 @@ serve(async (req) => {
       console.log('Downloading file from URL:', url);
       const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`Failed to fetch URL: ${response.statusText}`);
+        return createErrorResponse(new Error(`Failed to fetch URL: ${response.statusText}`), 400);
       }
       audioData = await response.blob();
       fileName = url.split('/').pop() || 'youtube-audio.mp3';
     } else {
-      throw new Error('Either URL or file path must be provided');
+      return createErrorResponse(new Error('Either URL or file path must be provided'), 400);
     }
 
     // Wrap all FADR API calls in try-catch blocks
@@ -91,7 +108,7 @@ serve(async (req) => {
       console.log('Creating FADR asset');
       const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
       if (!asset?._id) {
-        throw new Error('Failed to create asset: Invalid response');
+        return createErrorResponse(new Error('Failed to create asset: Invalid response'), 500);
       }
 
       console.log('Waiting for asset upload completion');
@@ -104,7 +121,7 @@ serve(async (req) => {
       console.log('Creating analysis task');
       const taskResponse = await createAnalysisTask(apiKey, asset._id);
       if (!taskResponse?.task?._id) {
-        throw new Error('Failed to create analysis task: Invalid response');
+        return createErrorResponse(new Error('Failed to create analysis task: Invalid response'), 500);
       }
 
       console.log('Polling for task completion');
@@ -116,7 +133,7 @@ serve(async (req) => {
       console.log('Analysis complete:', finalResponse);
 
       if (!finalResponse?.asset?.metaData) {
-        throw new Error('Invalid response structure: missing metadata');
+        return createErrorResponse(new Error('Invalid response structure: missing metadata'), 500);
       }
 
       const analysisData = {
@@ -129,30 +146,14 @@ serve(async (req) => {
       console.log(`Total execution time: ${executionTime}ms`);
 
       return new Response(JSON.stringify(analysisData), {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json'
-        },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
     } catch (fadrError) {
       console.error('FADR API error:', fadrError);
-      throw new Error(`FADR API error: ${fadrError.message}`);
+      return createErrorResponse(new Error(`FADR API error: ${fadrError.message}`), 500);
     }
   } catch (error) {
-    console.error('Error in analyze-song function:', error);
-    return new Response(
-      JSON.stringify({
-        error: error.name || 'Error',
-        details: error.message
-      }),
-      {
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json'
-        },
-        status: 500,
-      }
-    );
+    return createErrorResponse(error, 500);
   }
 });
