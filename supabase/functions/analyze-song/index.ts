@@ -15,12 +15,16 @@ const corsHeaders = {
   'Cache-Control': 'no-store, no-cache, must-revalidate'
 }
 
-// Increased timeout to 15 minutes for large files
-const TIMEOUT = 900000; 
+const TIMEOUT = 900000; // 15 minutes
 
-// Helper function to create error responses
 const createErrorResponse = (error: Error, status = 500) => {
-  console.error('Error in analyze-song function:', error);
+  console.error('Error details:', {
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    cause: error.cause
+  });
+  
   return new Response(
     JSON.stringify({
       error: error.name || 'Error',
@@ -38,7 +42,6 @@ serve(async (req) => {
   const startTime = Date.now();
   console.log('Starting analyze-song function');
 
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -49,13 +52,14 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get('FADR_API_KEY');
     if (!apiKey) {
+      console.error('FADR API key not configured');
       return createErrorResponse(new Error('FADR API key not configured'), 500);
     }
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!supabaseUrl || !supabaseKey) {
+      console.error('Supabase credentials not configured');
       return createErrorResponse(new Error('Supabase credentials not configured'), 500);
     }
     
@@ -63,7 +67,6 @@ serve(async (req) => {
     let audioData: Blob;
     let fileName: string;
 
-    // Set up timeout
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error('Operation timed out - please try with a smaller file')), TIMEOUT);
     });
@@ -80,6 +83,7 @@ serve(async (req) => {
       }
 
       if (!data) {
+        console.error('No file data received from storage');
         return createErrorResponse(new Error('No file data received from storage'), 400);
       }
 
@@ -87,17 +91,23 @@ serve(async (req) => {
       fileName = filePath.split('/').pop() || 'unknown.mp3';
     } else if (url) {
       console.log('Downloading file from URL:', url);
-      const response = await fetch(url);
-      if (!response.ok) {
-        return createErrorResponse(new Error(`Failed to fetch URL: ${response.statusText}`), 400);
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.error('URL fetch error:', response.statusText);
+          return createErrorResponse(new Error(`Failed to fetch URL: ${response.statusText}`), 400);
+        }
+        audioData = await response.blob();
+        fileName = url.split('/').pop() || 'youtube-audio.mp3';
+      } catch (fetchError) {
+        console.error('URL fetch error:', fetchError);
+        return createErrorResponse(fetchError, 400);
       }
-      audioData = await response.blob();
-      fileName = url.split('/').pop() || 'youtube-audio.mp3';
     } else {
+      console.error('No URL or file path provided');
       return createErrorResponse(new Error('Either URL or file path must be provided'), 400);
     }
 
-    // Wrap all FADR API calls in try-catch blocks
     try {
       console.log('Getting FADR upload URL for:', fileName);
       const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
@@ -108,6 +118,7 @@ serve(async (req) => {
       console.log('Creating FADR asset');
       const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
       if (!asset?._id) {
+        console.error('Invalid asset response:', asset);
         return createErrorResponse(new Error('Failed to create asset: Invalid response'), 500);
       }
 
@@ -121,6 +132,7 @@ serve(async (req) => {
       console.log('Creating analysis task');
       const taskResponse = await createAnalysisTask(apiKey, asset._id);
       if (!taskResponse?.task?._id) {
+        console.error('Invalid task response:', taskResponse);
         return createErrorResponse(new Error('Failed to create analysis task: Invalid response'), 500);
       }
 
@@ -133,6 +145,7 @@ serve(async (req) => {
       console.log('Analysis complete:', finalResponse);
 
       if (!finalResponse?.asset?.metaData) {
+        console.error('Invalid final response:', finalResponse);
         return createErrorResponse(new Error('Invalid response structure: missing metadata'), 500);
       }
 
@@ -154,6 +167,7 @@ serve(async (req) => {
       return createErrorResponse(new Error(`FADR API error: ${fadrError.message}`), 500);
     }
   } catch (error) {
+    console.error('Unexpected error:', error);
     return createErrorResponse(error, 500);
   }
 });
