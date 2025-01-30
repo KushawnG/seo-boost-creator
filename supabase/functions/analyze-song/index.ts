@@ -1,21 +1,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { 
-  getFadrUploadUrl, 
-  uploadFileToFadr, 
-  createFadrAsset,
-  waitForAssetUpload,
-  createAnalysisTask,
-  pollTaskStatus
-} from './fadr-service.ts'
+import { analyzeAudio } from './klangio-service.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Cache-Control': 'no-store, no-cache, must-revalidate'
 }
-
-const TIMEOUT = 900000; // 15 minutes
 
 const createErrorResponse = (error: Error, status = 500) => {
   console.error('Error details:', {
@@ -50,10 +41,10 @@ serve(async (req) => {
     const { url, filePath } = await req.json();
     console.log('Received request:', { url, filePath });
 
-    const apiKey = Deno.env.get('FADR_API_KEY');
+    const apiKey = Deno.env.get('KLANGIO_API_KEY');
     if (!apiKey) {
-      console.error('FADR API key not configured');
-      return createErrorResponse(new Error('FADR API key not configured'), 500);
+      console.error('Klangio API key not configured');
+      return createErrorResponse(new Error('Klangio API key not configured'), 500);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -65,11 +56,6 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
     let audioData: Blob;
-    let fileName: string;
-
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Operation timed out - please try with a smaller file')), TIMEOUT);
-    });
 
     if (filePath) {
       console.log('Downloading file from storage:', filePath);
@@ -88,7 +74,6 @@ serve(async (req) => {
       }
 
       audioData = data;
-      fileName = filePath.split('/').pop() || 'unknown.mp3';
     } else if (url) {
       console.log('Downloading file from URL:', url);
       try {
@@ -98,7 +83,6 @@ serve(async (req) => {
           return createErrorResponse(new Error(`Failed to fetch URL: ${response.statusText}`), 400);
         }
         audioData = await response.blob();
-        fileName = url.split('/').pop() || 'youtube-audio.mp3';
       } catch (fetchError) {
         console.error('URL fetch error:', fetchError);
         return createErrorResponse(fetchError, 400);
@@ -109,52 +93,9 @@ serve(async (req) => {
     }
 
     try {
-      console.log('Getting FADR upload URL for:', fileName);
-      const { url: uploadUrl, s3Path } = await getFadrUploadUrl(apiKey, fileName);
+      console.log('Starting audio analysis with Klangio');
+      const analysisData = await analyzeAudio(apiKey, audioData);
       
-      console.log('Uploading file to FADR');
-      await uploadFileToFadr(uploadUrl, audioData);
-      
-      console.log('Creating FADR asset');
-      const { asset } = await createFadrAsset(apiKey, fileName, s3Path);
-      if (!asset?._id) {
-        console.error('Invalid asset response:', asset);
-        return createErrorResponse(new Error('Failed to create asset: Invalid response'), 500);
-      }
-
-      console.log('Waiting for asset upload completion');
-      const completedAsset = await Promise.race([
-        waitForAssetUpload(apiKey, asset._id),
-        timeoutPromise
-      ]);
-      console.log('Asset upload completed:', completedAsset);
-
-      console.log('Creating analysis task');
-      const taskResponse = await createAnalysisTask(apiKey, asset._id);
-      if (!taskResponse?.task?._id) {
-        console.error('Invalid task response:', taskResponse);
-        return createErrorResponse(new Error('Failed to create analysis task: Invalid response'), 500);
-      }
-
-      console.log('Polling for task completion');
-      const finalResponse = await Promise.race([
-        pollTaskStatus(apiKey, taskResponse.task._id),
-        timeoutPromise
-      ]);
-      
-      console.log('Analysis complete:', finalResponse);
-
-      if (!finalResponse?.asset?.metaData) {
-        console.error('Invalid final response:', finalResponse);
-        return createErrorResponse(new Error('Invalid response structure: missing metadata'), 500);
-      }
-
-      const analysisData = {
-        key: finalResponse.asset.metaData.key || 'Unknown',
-        bpm: finalResponse.asset.metaData.tempo || 0,
-        chords: finalResponse.asset.stems || [],
-      };
-
       const executionTime = Date.now() - startTime;
       console.log(`Total execution time: ${executionTime}ms`);
 
@@ -162,9 +103,9 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
-    } catch (fadrError) {
-      console.error('FADR API error:', fadrError);
-      return createErrorResponse(new Error(`FADR API error: ${fadrError.message}`), 500);
+    } catch (analysisError) {
+      console.error('Klangio API error:', analysisError);
+      return createErrorResponse(new Error(`Klangio API error: ${analysisError.message}`), 500);
     }
   } catch (error) {
     console.error('Unexpected error:', error);
