@@ -5,9 +5,8 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
   
   try {
     const formData = new FormData();
-    formData.append('file', audioData); // Changed from 'audio' to 'file' as per docs
+    formData.append('file', audioData);
 
-    // Add query parameters for vocabulary
     const url = new URL(`${KLANGIO_API_BASE_URL}/chord-recognition`);
     url.searchParams.append('vocabulary', 'major-minor');
 
@@ -15,7 +14,7 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
     const response = await fetch(url.toString(), {
       method: 'POST',
       headers: {
-        'kl-api-key': apiKey, // Changed from Authorization Bearer to kl-api-key
+        'kl-api-key': apiKey,
       },
       body: formData,
     });
@@ -33,12 +32,12 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
     const jobData = await response.json();
     console.log('Received job data:', jobData);
 
-    // Poll for results
+    // Poll for results with increased timeout and polling interval
     const result = await pollForResults(jobData.status_endpoint_url, apiKey);
     console.log('Analysis results:', result);
 
-    // Process the results to extract key information
     const processedResults = processChordResults(result);
+    console.log('Processed results:', processedResults);
     
     return processedResults;
   } catch (error) {
@@ -47,31 +46,49 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
   }
 }
 
-async function pollForResults(statusUrl: string, apiKey: string, maxAttempts = 30): Promise<any> {
+async function pollForResults(statusUrl: string, apiKey: string, maxAttempts = 60): Promise<any> {
+  console.log('Starting to poll for results:', statusUrl);
+  
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const response = await fetch(statusUrl, {
-      headers: {
-        'kl-api-key': apiKey,
-      },
-    });
+    try {
+      console.log(`Polling attempt ${attempt + 1}/${maxAttempts}`);
+      
+      const response = await fetch(statusUrl, {
+        headers: {
+          'kl-api-key': apiKey,
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch status: ${response.status}`);
+      if (!response.ok) {
+        console.error('Error response from status endpoint:', {
+          status: response.status,
+          statusText: response.statusText
+        });
+        throw new Error(`Failed to fetch status: ${response.status}`);
+      }
+
+      const status = await response.json();
+      console.log('Status response:', status);
+      
+      if (status.status === 'completed') {
+        console.log('Analysis completed successfully');
+        return status.result;
+      } else if (status.status === 'failed') {
+        console.error('Analysis failed:', status);
+        throw new Error(`Analysis failed: ${status.error || 'Unknown error'}`);
+      } else if (status.status === 'processing') {
+        console.log('Analysis still processing...');
+      }
+
+      // Wait 5 seconds before next attempt (increased from 2 seconds)
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    } catch (error) {
+      console.error('Error during polling:', error);
+      throw error;
     }
-
-    const status = await response.json();
-    
-    if (status.status === 'completed') {
-      return status.result;
-    } else if (status.status === 'failed') {
-      throw new Error('Analysis failed');
-    }
-
-    // Wait 2 seconds before next attempt
-    await new Promise(resolve => setTimeout(resolve, 2000));
   }
 
-  throw new Error('Analysis timed out');
+  throw new Error(`Analysis timed out after ${maxAttempts} attempts`);
 }
 
 function processChordResults(results: [number, number, string][]): {
@@ -79,6 +96,15 @@ function processChordResults(results: [number, number, string][]): {
   bpm: number;
   chords: string[];
 } {
+  if (!Array.isArray(results) || results.length === 0) {
+    console.warn('No results to process, returning defaults');
+    return {
+      key: 'Unknown',
+      bpm: 0,
+      chords: [],
+    };
+  }
+
   // Extract unique chords (excluding N and X)
   const uniqueChords = [...new Set(
     results
