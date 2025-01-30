@@ -97,7 +97,7 @@ serve(async (req) => {
       const analysisData = await analyzeAudio(apiKey, audioData);
       
       const executionTime = Date.now() - startTime;
-      console.log(`Total execution time: ${executionTime}ms`);
+      console.log(`Analysis completed successfully in ${executionTime}ms:`, analysisData);
 
       return new Response(JSON.stringify(analysisData), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

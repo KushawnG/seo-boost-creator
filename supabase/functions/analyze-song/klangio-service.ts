@@ -5,20 +5,26 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
   
   try {
     const formData = new FormData();
-    formData.append('file', audioData);
+    formData.append('audio', audioData, 'audio.mp3'); // Specify filename and proper field name
 
+    console.log('Sending request to Klangio API...');
     const response = await fetch(`${KLANGIO_API_BASE_URL}/analyze`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
+        // Don't set Content-Type header, let fetch set it with boundary for FormData
       },
       body: formData,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Klangio API error:', errorText);
-      throw new Error(`Klangio API error: ${errorText}`);
+      console.error('Klangio API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText
+      });
+      throw new Error(`Klangio API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
