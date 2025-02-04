@@ -12,6 +12,8 @@
     "noImplicitAny": false,
     "noUnusedParameters": false,
     "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "types": ["react"],
     "allowJs": true,
     "noUnusedLocals": false,
     "strictNullChecks": false

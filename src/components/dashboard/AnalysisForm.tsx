@@ -141,41 +141,22 @@ export const AnalysisForm = () => {
       // Generate file path
       const filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
       
-      // Get the presigned URL for upload
-      const { data: { signedUrl }, error: signedUrlError } = await supabase.storage
+      // Upload file directly to Supabase storage
+      const { error: uploadError } = await supabase.storage
         .from('audio_files')
-        .createSignedUploadUrl(filePath);
-
-      if (signedUrlError) throw signedUrlError;
-
-      // Create XHR request for upload with progress tracking
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        
-        xhr.upload.addEventListener('progress', (event) => {
-          if (event.lengthComputable) {
-            const percentage = (event.loaded / event.total) * 100;
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+          // @ts-ignore - Supabase types are outdated
+          onProgress: (progress: { loadedBytes: number; totalBytes: number }) => {
+            const percentage = (progress.loadedBytes / progress.totalBytes) * 100;
             setUploadProgress(Math.round(percentage));
             console.log(`Upload progress: ${percentage}%`);
           }
         });
 
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 200) {
-            resolve(xhr.response);
-          } else {
-            reject(new Error(`Upload failed with status: ${xhr.status}`));
-          }
-        });
-
-        xhr.addEventListener('error', () => {
-          reject(new Error('Upload failed'));
-        });
-
-        xhr.open('PUT', signedUrl);
-        xhr.setRequestHeader('Content-Type', file.type);
-        xhr.send(file);
-      });
+      if (uploadError) throw uploadError;
 
       console.log('File uploaded successfully');
 
