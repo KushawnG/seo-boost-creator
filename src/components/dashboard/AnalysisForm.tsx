@@ -163,7 +163,14 @@ export const AnalysisForm = () => {
         body: { url }
       });
 
-      if (analysisError) throw analysisError;
+      if (analysisError) {
+        console.error('Analysis error:', analysisError);
+        throw new Error(analysisError.message || 'Analysis failed');
+      }
+
+      if (!data) {
+        throw new Error('No analysis results received');
+      }
 
       console.log('Analysis complete:', data);
 
@@ -186,9 +193,16 @@ export const AnalysisForm = () => {
       });
     } catch (error: any) {
       console.error('Analysis error:', error);
+      
+      const errorMessage = error.message || 'An unexpected error occurred';
+      console.error('Error details:', {
+        message: errorMessage,
+        error
+      });
+      
       toast({
         title: "Analysis Failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
 
@@ -198,7 +212,7 @@ export const AnalysisForm = () => {
           .from('song_analysis')
           .update({
             status: 'failed',
-            error_message: error.message
+            error_message: errorMessage
           })
           .eq('id', analysis.id);
       }
@@ -220,7 +234,11 @@ export const AnalysisForm = () => {
       if (!isValid) return;
 
       setIsLoading(true);
-      console.log('Starting file upload:', file.name);
+      console.log('Starting file upload:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      });
 
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("User not authenticated");
@@ -259,16 +277,30 @@ export const AnalysisForm = () => {
           }
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
-      console.log('File uploaded successfully');
+      console.log('File uploaded successfully:', {
+        path: filePath,
+        type: file.type,
+        size: file.size
+      });
 
       // Call the analyze-song function
       const { data, error: analysisError } = await supabase.functions.invoke<AnalysisResult>('analyze-song', {
         body: { filePath }
       });
 
-      if (analysisError) throw analysisError;
+      if (analysisError) {
+        console.error('Analysis error:', analysisError);
+        throw new Error(analysisError.message || 'Analysis failed');
+      }
+
+      if (!data) {
+        throw new Error('No analysis results received');
+      }
 
       console.log('Analysis complete:', data);
 
@@ -291,9 +323,21 @@ export const AnalysisForm = () => {
       });
     } catch (error: any) {
       console.error('Upload/analysis error:', error);
+      
+      const errorMessage = error.message || 'An unexpected error occurred';
+      console.error('Error details:', {
+        message: errorMessage,
+        error,
+        file: {
+          name: file.name,
+          type: file.type,
+          size: file.size
+        }
+      });
+      
       toast({
         title: "Process Failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
 
@@ -303,7 +347,7 @@ export const AnalysisForm = () => {
           .from('song_analysis')
           .update({
             status: 'failed',
-            error_message: error.message
+            error_message: errorMessage
           })
           .eq('id', analysis.id);
       }

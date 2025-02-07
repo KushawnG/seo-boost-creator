@@ -31,6 +31,14 @@ const createErrorResponse = (error: Error, status = 500) => {
   );
 };
 
+const createBlobFromArrayBuffer = async (buffer: ArrayBuffer, type: string): Promise<Blob> => {
+  // Convert ArrayBuffer to Uint8Array
+  const uint8Array = new Uint8Array(buffer);
+  
+  // Create a blob with the correct content type
+  return new Blob([uint8Array], { type });
+};
+
 serve(async (req) => {
   const startTime = Date.now();
   console.log('Starting analyze-song function');
@@ -61,6 +69,29 @@ serve(async (req) => {
 
     if (filePath) {
       console.log('Downloading file from storage:', filePath);
+      
+      // First, get the file metadata to know its content type
+      const { data: metadata, error: metadataError } = await supabase.storage
+        .from('audio_files')
+        .getMetadata(filePath);
+
+      if (metadataError) {
+        console.error('Metadata fetch error:', {
+          message: metadataError.message,
+          details: metadataError,
+          filePath
+        });
+        return createErrorResponse(new Error(`Failed to get file metadata: ${metadataError.message}`), 400);
+      }
+
+      if (!metadata) {
+        console.error('No metadata received:', { filePath });
+        return createErrorResponse(new Error('No file metadata available'), 400);
+      }
+
+      console.log('File metadata:', metadata);
+
+      // Now download the file
       const { data, error: downloadError } = await supabase.storage
         .from('audio_files')
         .download(filePath);
@@ -79,14 +110,25 @@ serve(async (req) => {
         return createErrorResponse(new Error('No file data received from storage'), 400);
       }
 
-      // Log file details
-      console.log('File downloaded successfully:', {
-        size: data.size,
-        type: data.type,
-        filePath
-      });
-
-      audioData = data;
+      // Convert the downloaded data to a proper Blob with the correct content type
+      try {
+        const arrayBuffer = await data.arrayBuffer();
+        audioData = await createBlobFromArrayBuffer(arrayBuffer, metadata.mimetype || data.type);
+        
+        console.log('File processed successfully:', {
+          originalSize: data.size,
+          originalType: data.type,
+          blobSize: audioData.size,
+          blobType: audioData.type,
+          filePath
+        });
+      } catch (conversionError) {
+        console.error('File conversion error:', {
+          error: conversionError,
+          filePath
+        });
+        return createErrorResponse(new Error('Failed to process audio file'), 500);
+      }
     } else if (url) {
       console.log('Downloading file from URL:', url);
       try {
@@ -99,7 +141,11 @@ serve(async (req) => {
           });
           return createErrorResponse(new Error(`Failed to fetch URL: ${response.statusText}`), 400);
         }
-        audioData = await response.blob();
+        
+        const contentType = response.headers.get('content-type') || 'audio/mpeg';
+        const arrayBuffer = await response.arrayBuffer();
+        audioData = await createBlobFromArrayBuffer(arrayBuffer, contentType);
+        
         console.log('URL file downloaded successfully:', {
           size: audioData.size,
           type: audioData.type,
@@ -118,6 +164,11 @@ serve(async (req) => {
     }
 
     try {
+      // Verify the blob is valid
+      if (!audioData || audioData.size === 0) {
+        throw new Error('Invalid audio data: Empty file');
+      }
+
       console.log('Starting audio analysis with Klangio:', {
         fileSize: audioData.size,
         fileType: audioData.type
@@ -135,17 +186,19 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
-    } catch (analysisError) {
+    } catch (analysisError: any) {
       console.error('Klangio API error:', {
         error: analysisError,
         message: analysisError.message,
         stack: analysisError.stack,
-        fileSize: audioData.size,
-        fileType: audioData.type
+        fileDetails: {
+          size: audioData.size,
+          type: audioData.type
+        }
       });
       return createErrorResponse(new Error(`Klangio API error: ${analysisError.message}`), 500);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Unexpected error:', {
       error,
       message: error.message,

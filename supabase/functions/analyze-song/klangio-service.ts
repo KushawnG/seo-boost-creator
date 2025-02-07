@@ -17,11 +17,29 @@ interface StatusResponse {
   result?: BeatTrackingResult[] | ChordRecognitionResult[];
 }
 
+const ALLOWED_MIME_TYPES = [
+  'audio/mpeg',  // .mp3
+  'audio/wav',   // .wav
+  'audio/x-m4a', // .m4a
+  'audio/aac',   // .aac
+  'audio/ogg'    // .ogg
+];
+
 export async function analyzeAudio(apiKey: string, audioData: Blob) {
   console.log('Starting Klangio audio analysis:', {
     fileSize: audioData.size,
     fileType: audioData.type
   });
+
+  // Validate blob data
+  if (!audioData || audioData.size === 0) {
+    throw new Error('Invalid audio data: Empty file');
+  }
+
+  if (!ALLOWED_MIME_TYPES.includes(audioData.type)) {
+    console.error('Invalid MIME type:', audioData.type);
+    throw new Error(`Unsupported audio format: ${audioData.type}. Please use MP3, WAV, M4A, AAC, or OGG files.`);
+  }
   
   try {
     // First get the beats and BPM
@@ -47,7 +65,7 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
     console.log('Processed results:', processedResults);
     
     return processedResults;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error analyzing audio:', {
       error,
       message: error.message,
@@ -63,7 +81,10 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
 
 async function analyzeBPM(apiKey: string, audioData: Blob): Promise<BeatTrackingResult[]> {
   const formData = new FormData();
-  formData.append('file', audioData);
+  
+  // Create a new blob with a specific filename to ensure proper handling
+  const file = new Blob([audioData], { type: audioData.type });
+  formData.append('file', file, 'audio.mp3'); // Use .mp3 extension as it's widely supported
 
   console.log('Sending beat tracking request...');
   const response = await fetch(`${KLANGIO_API_BASE_URL}/beat-tracking`, {
@@ -92,7 +113,10 @@ async function analyzeBPM(apiKey: string, audioData: Blob): Promise<BeatTracking
 
 async function analyzeChords(apiKey: string, audioData: Blob): Promise<ChordRecognitionResult[]> {
   const formData = new FormData();
-  formData.append('file', audioData);
+  
+  // Create a new blob with a specific filename to ensure proper handling
+  const file = new Blob([audioData], { type: audioData.type });
+  formData.append('file', file, 'audio.mp3'); // Use .mp3 extension as it's widely supported
 
   const url = new URL(`${KLANGIO_API_BASE_URL}/chord-recognition`);
   url.searchParams.append('vocabulary', 'major-minor'); // Using simpler vocabulary for better accuracy
@@ -163,7 +187,7 @@ async function pollForResults<T>(statusUrl: string, apiKey: string, maxAttempts 
 
       // Wait 5 seconds before next attempt
       await new Promise(resolve => setTimeout(resolve, 5000));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error during polling:', {
         error,
         message: error.message,
