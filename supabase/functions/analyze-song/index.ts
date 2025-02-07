@@ -9,12 +9,14 @@ const corsHeaders = {
 }
 
 const createErrorResponse = (error: Error, status = 500) => {
-  console.error('Error details:', {
+  const errorDetails = {
     name: error.name,
     message: error.message,
     stack: error.stack,
     cause: error.cause
-  });
+  };
+  
+  console.error('Error details:', JSON.stringify(errorDetails, null, 2));
   
   return new Response(
     JSON.stringify({
@@ -64,14 +66,25 @@ serve(async (req) => {
         .download(filePath);
 
       if (downloadError) {
-        console.error('Download error:', downloadError);
+        console.error('Download error:', {
+          message: downloadError.message,
+          details: downloadError,
+          filePath
+        });
         return createErrorResponse(new Error(`Failed to download file: ${downloadError.message}`), 400);
       }
 
       if (!data) {
-        console.error('No file data received from storage');
+        console.error('No file data received from storage:', { filePath });
         return createErrorResponse(new Error('No file data received from storage'), 400);
       }
+
+      // Log file details
+      console.log('File downloaded successfully:', {
+        size: data.size,
+        type: data.type,
+        filePath
+      });
 
       audioData = data;
     } else if (url) {
@@ -79,12 +92,24 @@ serve(async (req) => {
       try {
         const response = await fetch(url);
         if (!response.ok) {
-          console.error('URL fetch error:', response.statusText);
+          console.error('URL fetch error:', {
+            status: response.status,
+            statusText: response.statusText,
+            url
+          });
           return createErrorResponse(new Error(`Failed to fetch URL: ${response.statusText}`), 400);
         }
         audioData = await response.blob();
+        console.log('URL file downloaded successfully:', {
+          size: audioData.size,
+          type: audioData.type,
+          url
+        });
       } catch (fetchError) {
-        console.error('URL fetch error:', fetchError);
+        console.error('URL fetch error:', {
+          error: fetchError,
+          url
+        });
         return createErrorResponse(fetchError, 400);
       }
     } else {
@@ -93,22 +118,39 @@ serve(async (req) => {
     }
 
     try {
-      console.log('Starting audio analysis with Klangio');
+      console.log('Starting audio analysis with Klangio:', {
+        fileSize: audioData.size,
+        fileType: audioData.type
+      });
+      
       const analysisData = await analyzeAudio(apiKey, audioData);
       
       const executionTime = Date.now() - startTime;
-      console.log(`Analysis completed successfully in ${executionTime}ms:`, analysisData);
+      console.log('Analysis completed successfully:', {
+        executionTime,
+        results: analysisData
+      });
 
       return new Response(JSON.stringify(analysisData), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       });
     } catch (analysisError) {
-      console.error('Klangio API error:', analysisError);
+      console.error('Klangio API error:', {
+        error: analysisError,
+        message: analysisError.message,
+        stack: analysisError.stack,
+        fileSize: audioData.size,
+        fileType: audioData.type
+      });
       return createErrorResponse(new Error(`Klangio API error: ${analysisError.message}`), 500);
     }
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Unexpected error:', {
+      error,
+      message: error.message,
+      stack: error.stack
+    });
     return createErrorResponse(error, 500);
   }
 });

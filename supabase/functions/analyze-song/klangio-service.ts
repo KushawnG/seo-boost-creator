@@ -18,16 +18,29 @@ interface StatusResponse {
 }
 
 export async function analyzeAudio(apiKey: string, audioData: Blob) {
-  console.log('Starting Klangio audio analysis');
+  console.log('Starting Klangio audio analysis:', {
+    fileSize: audioData.size,
+    fileType: audioData.type
+  });
   
   try {
     // First get the beats and BPM
+    console.log('Starting BPM analysis...');
     const bpmData = await analyzeBPM(apiKey, audioData);
-    console.log('BPM analysis complete:', bpmData);
+    console.log('BPM analysis complete:', {
+      dataPoints: bpmData.length,
+      firstBeat: bpmData[0],
+      lastBeat: bpmData[bpmData.length - 1]
+    });
 
     // Then get the chord progression
+    console.log('Starting chord analysis...');
     const chordData = await analyzeChords(apiKey, audioData);
-    console.log('Chord analysis complete:', chordData);
+    console.log('Chord analysis complete:', {
+      chordCount: chordData.length,
+      firstChord: chordData[0],
+      lastChord: chordData[chordData.length - 1]
+    });
 
     // Combine and process the results
     const processedResults = processResults(bpmData, chordData);
@@ -35,7 +48,15 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
     
     return processedResults;
   } catch (error) {
-    console.error('Error analyzing audio:', error);
+    console.error('Error analyzing audio:', {
+      error,
+      message: error.message,
+      stack: error.stack,
+      fileDetails: {
+        size: audioData.size,
+        type: audioData.type
+      }
+    });
     throw error;
   }
 }
@@ -44,6 +65,7 @@ async function analyzeBPM(apiKey: string, audioData: Blob): Promise<BeatTracking
   const formData = new FormData();
   formData.append('file', audioData);
 
+  console.log('Sending beat tracking request...');
   const response = await fetch(`${KLANGIO_API_BASE_URL}/beat-tracking`, {
     method: 'POST',
     headers: {
@@ -53,6 +75,10 @@ async function analyzeBPM(apiKey: string, audioData: Blob): Promise<BeatTracking
   });
 
   if (!response.ok) {
+    console.error('Beat tracking request failed:', {
+      status: response.status,
+      statusText: response.statusText
+    });
     await handleApiError(response);
   }
 
@@ -71,6 +97,7 @@ async function analyzeChords(apiKey: string, audioData: Blob): Promise<ChordReco
   const url = new URL(`${KLANGIO_API_BASE_URL}/chord-recognition`);
   url.searchParams.append('vocabulary', 'major-minor'); // Using simpler vocabulary for better accuracy
 
+  console.log('Sending chord recognition request...');
   const response = await fetch(url.toString(), {
     method: 'POST',
     headers: {
@@ -80,6 +107,10 @@ async function analyzeChords(apiKey: string, audioData: Blob): Promise<ChordReco
   });
 
   if (!response.ok) {
+    console.error('Chord recognition request failed:', {
+      status: response.status,
+      statusText: response.statusText
+    });
     await handleApiError(response);
   }
 
@@ -105,11 +136,20 @@ async function pollForResults<T>(statusUrl: string, apiKey: string, maxAttempts 
       });
 
       if (!response.ok) {
+        console.error('Polling request failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          attempt: attempt + 1
+        });
         await handleApiError(response);
       }
 
       const status: StatusResponse = await response.json();
-      console.log('Status response:', status);
+      console.log('Status response:', {
+        status: status.status,
+        error: status.error,
+        hasResult: !!status.result
+      });
       
       if (status.status === 'COMPLETED' && status.result) {
         console.log('Analysis completed successfully');
@@ -124,7 +164,11 @@ async function pollForResults<T>(statusUrl: string, apiKey: string, maxAttempts 
       // Wait 5 seconds before next attempt
       await new Promise(resolve => setTimeout(resolve, 5000));
     } catch (error) {
-      console.error('Error during polling:', error);
+      console.error('Error during polling:', {
+        error,
+        message: error.message,
+        attempt: attempt + 1
+      });
       throw error;
     }
   }
@@ -134,11 +178,22 @@ async function pollForResults<T>(statusUrl: string, apiKey: string, maxAttempts 
 
 async function handleApiError(response: Response): Promise<never> {
   let errorMessage: string;
+  let errorData: any;
   
   try {
-    const errorData = await response.json();
+    errorData = await response.json();
+    console.error('API error response:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorData
+    });
     errorMessage = errorData.error || response.statusText;
-  } catch {
+  } catch (error) {
+    console.error('Failed to parse error response:', {
+      status: response.status,
+      statusText: response.statusText,
+      error
+    });
     errorMessage = response.statusText;
   }
 
@@ -159,17 +214,19 @@ async function handleApiError(response: Response): Promise<never> {
 
 function processResults(beatData: BeatTrackingResult[], chordData: ChordRecognitionResult[]) {
   if (!Array.isArray(beatData) || beatData.length === 0) {
+    console.error('Invalid beat tracking results:', beatData);
     throw new Error('Invalid beat tracking results');
   }
 
   if (!Array.isArray(chordData) || chordData.length === 0) {
+    console.error('Invalid chord recognition results:', chordData);
     throw new Error('Invalid chord recognition results');
   }
 
   // Calculate BPM from beat tracking data
   const beatIntervals = [];
   for (let i = 1; i < beatData.length; i++) {
-    const interval = beatData[i][0] - beatData[i - 1][0]; // Access tuple elements by index
+    const interval = beatData[i][0] - beatData[i - 1][0];
     beatIntervals.push(interval);
   }
   
@@ -202,9 +259,12 @@ function processResults(beatData: BeatTrackingResult[], chordData: ChordRecognit
     }
   });
 
-  return {
+  const results = {
     key,
     bpm,
     chords: uniqueChords,
   };
+
+  console.log('Final processed results:', results);
+  return results;
 }
