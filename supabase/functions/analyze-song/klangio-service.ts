@@ -1,42 +1,36 @@
 const KLANGIO_API_BASE_URL = 'https://api.klang.io';
 
+// API response types
+type BeatTrackingResult = [number, number]; // [timestamp, downbeat]
+type ChordRecognitionResult = [number, number, string]; // [startTime, endTime, chord]
+
+interface JobResponse {
+  job_id: string;
+  creation_date: string;
+  deletion_date: string;
+  status_endpoint_url: string;
+}
+
+interface StatusResponse {
+  status: 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  error?: string;
+  result?: BeatTrackingResult[] | ChordRecognitionResult[];
+}
+
 export async function analyzeAudio(apiKey: string, audioData: Blob) {
   console.log('Starting Klangio audio analysis');
   
   try {
-    const formData = new FormData();
-    formData.append('file', audioData);
+    // First get the beats and BPM
+    const bpmData = await analyzeBPM(apiKey, audioData);
+    console.log('BPM analysis complete:', bpmData);
 
-    const url = new URL(`${KLANGIO_API_BASE_URL}/chord-recognition`);
-    url.searchParams.append('vocabulary', 'major-minor');
+    // Then get the chord progression
+    const chordData = await analyzeChords(apiKey, audioData);
+    console.log('Chord analysis complete:', chordData);
 
-    console.log('Sending request to Klangio API...');
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'kl-api-key': apiKey,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Klangio API error response:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText
-      });
-      throw new Error(`Klangio API error: ${response.status} - ${errorText}`);
-    }
-
-    const jobData = await response.json();
-    console.log('Received job data:', jobData);
-
-    // Poll for results with increased timeout and polling interval
-    const result = await pollForResults(jobData.status_endpoint_url, apiKey);
-    console.log('Analysis results:', result);
-
-    const processedResults = processChordResults(result);
+    // Combine and process the results
+    const processedResults = processResults(bpmData, chordData);
     console.log('Processed results:', processedResults);
     
     return processedResults;
@@ -46,7 +40,58 @@ export async function analyzeAudio(apiKey: string, audioData: Blob) {
   }
 }
 
-async function pollForResults(statusUrl: string, apiKey: string, maxAttempts = 60): Promise<any> {
+async function analyzeBPM(apiKey: string, audioData: Blob): Promise<BeatTrackingResult[]> {
+  const formData = new FormData();
+  formData.append('file', audioData);
+
+  const response = await fetch(`${KLANGIO_API_BASE_URL}/beat-tracking`, {
+    method: 'POST',
+    headers: {
+      'kl-api-key': apiKey,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    await handleApiError(response);
+  }
+
+  const jobData: JobResponse = await response.json();
+  console.log('Beat tracking job created:', jobData);
+
+  // Poll for results
+  const result = await pollForResults<BeatTrackingResult[]>(jobData.status_endpoint_url, apiKey);
+  return result;
+}
+
+async function analyzeChords(apiKey: string, audioData: Blob): Promise<ChordRecognitionResult[]> {
+  const formData = new FormData();
+  formData.append('file', audioData);
+
+  const url = new URL(`${KLANGIO_API_BASE_URL}/chord-recognition`);
+  url.searchParams.append('vocabulary', 'major-minor'); // Using simpler vocabulary for better accuracy
+
+  const response = await fetch(url.toString(), {
+    method: 'POST',
+    headers: {
+      'kl-api-key': apiKey,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    await handleApiError(response);
+  }
+
+  const jobData: JobResponse = await response.json();
+  console.log('Chord recognition job created:', jobData);
+
+  // Poll for results
+  const result = await pollForResults<ChordRecognitionResult[]>(jobData.status_endpoint_url, apiKey);
+  return result;
+}
+
+async function pollForResults<T>(statusUrl: string, apiKey: string, maxAttempts = 60): Promise<T> {
   console.log('Starting to poll for results:', statusUrl);
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -60,27 +105,23 @@ async function pollForResults(statusUrl: string, apiKey: string, maxAttempts = 6
       });
 
       if (!response.ok) {
-        console.error('Error response from status endpoint:', {
-          status: response.status,
-          statusText: response.statusText
-        });
-        throw new Error(`Failed to fetch status: ${response.status}`);
+        await handleApiError(response);
       }
 
-      const status = await response.json();
+      const status: StatusResponse = await response.json();
       console.log('Status response:', status);
       
-      if (status.status === 'completed') {
+      if (status.status === 'COMPLETED' && status.result) {
         console.log('Analysis completed successfully');
-        return status.result;
-      } else if (status.status === 'failed') {
+        return status.result as T;
+      } else if (status.status === 'FAILED') {
         console.error('Analysis failed:', status);
-        throw new Error(`Analysis failed: ${status.error || 'Unknown error'}`);
-      } else if (status.status === 'processing') {
-        console.log('Analysis still processing...');
+        throw new Error(status.error || 'Analysis failed');
+      } else if (status.status === 'IN_QUEUE' || status.status === 'IN_PROGRESS') {
+        console.log(`Analysis ${status.status.toLowerCase()}...`);
       }
 
-      // Wait 5 seconds before next attempt (increased from 2 seconds)
+      // Wait 5 seconds before next attempt
       await new Promise(resolve => setTimeout(resolve, 5000));
     } catch (error) {
       console.error('Error during polling:', error);
@@ -91,53 +132,79 @@ async function pollForResults(statusUrl: string, apiKey: string, maxAttempts = 6
   throw new Error(`Analysis timed out after ${maxAttempts} attempts`);
 }
 
-function processChordResults(results: [number, number, string][]): {
-  key: string;
-  bpm: number;
-  chords: string[];
-} {
-  if (!Array.isArray(results) || results.length === 0) {
-    console.warn('No results to process, returning defaults');
-    return {
-      key: 'Unknown',
-      bpm: 0,
-      chords: [],
-    };
+async function handleApiError(response: Response): Promise<never> {
+  let errorMessage: string;
+  
+  try {
+    const errorData = await response.json();
+    errorMessage = errorData.error || response.statusText;
+  } catch {
+    errorMessage = response.statusText;
   }
+
+  // Map known API errors to user-friendly messages
+  switch (errorMessage) {
+    case 'Audio file format could not be parsed!':
+      throw new Error('Unsupported audio format. Please use MP3, WAV, M4A, AAC, or OGG files.');
+    case 'Audio file must be longer than 5 seconds!':
+      throw new Error('Audio file must be longer than 5 seconds.');
+    case 'No notes found!':
+      throw new Error('No musical notes detected in the audio. The file may be corrupted or contain no music.');
+    case 'No beats found!':
+      throw new Error('No rhythmic pattern detected. The audio may be arhythmic or outside the supported tempo range (40-300 BPM).');
+    default:
+      throw new Error(`Klangio API error: ${errorMessage}`);
+  }
+}
+
+function processResults(beatData: BeatTrackingResult[], chordData: ChordRecognitionResult[]) {
+  if (!Array.isArray(beatData) || beatData.length === 0) {
+    throw new Error('Invalid beat tracking results');
+  }
+
+  if (!Array.isArray(chordData) || chordData.length === 0) {
+    throw new Error('Invalid chord recognition results');
+  }
+
+  // Calculate BPM from beat tracking data
+  const beatIntervals = [];
+  for (let i = 1; i < beatData.length; i++) {
+    const interval = beatData[i][0] - beatData[i - 1][0]; // Access tuple elements by index
+    beatIntervals.push(interval);
+  }
+  
+  // Calculate average interval and convert to BPM
+  const averageInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
+  const bpm = Math.round(60 / averageInterval);
 
   // Extract unique chords (excluding N and X)
   const uniqueChords = [...new Set(
-    results
+    chordData
       .map(([, , chord]) => chord)
       .filter(chord => chord !== 'N' && chord !== 'X')
   )];
 
   // Determine the key based on the most frequent chord
-  const chordCounts = new Map<string, number>();
-  results.forEach(([start, end, chord]) => {
+  const chordDurations = new Map<string, number>();
+  chordData.forEach(([start, end, chord]) => {
     if (chord !== 'N' && chord !== 'X') {
       const duration = end - start;
-      chordCounts.set(chord, (chordCounts.get(chord) || 0) + duration);
+      chordDurations.set(chord, (chordDurations.get(chord) || 0) + duration);
     }
   });
 
   let key = 'Unknown';
   let maxDuration = 0;
-  chordCounts.forEach((duration, chord) => {
+  chordDurations.forEach((duration, chord) => {
     if (duration > maxDuration) {
       maxDuration = duration;
       key = chord.split(':')[0]; // Extract note from chord (e.g., "E:maj" -> "E")
     }
   });
 
-  // Calculate approximate BPM based on chord changes
-  const chordChanges = results.length - 1;
-  const totalDuration = results[results.length - 1][1] - results[0][0];
-  const approximateBPM = Math.round((chordChanges / totalDuration) * 60);
-
   return {
     key,
-    bpm: approximateBPM,
+    bpm,
     chords: uniqueChords,
   };
 }

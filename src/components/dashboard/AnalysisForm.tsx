@@ -6,15 +6,35 @@ import { supabase } from "@/integrations/supabase/client";
 import { Progress } from "@/components/ui/progress";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MIN_DURATION = 5; // 5 seconds minimum as per Klangio API requirement
 const ALLOWED_AUDIO_TYPES = [
-  'audio/mpeg', // .mp3
-  'audio/wav',  // .wav
+  'audio/mpeg',  // .mp3
+  'audio/wav',   // .wav
   'audio/x-m4a', // .m4a
-  'audio/aac',  // .aac
-  'audio/ogg'   // .ogg
-];
+  'audio/aac',   // .aac
+  'audio/ogg'    // .ogg
+] as const;
 
-const ALLOWED_FILE_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg'];
+const ALLOWED_FILE_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg'] as const;
+
+interface AnalysisRecord {
+  id: string;
+  url?: string;
+  file_path?: string;
+  title: string;
+  status: 'pending' | 'completed' | 'failed';
+  user_id: string;
+  key?: string;
+  bpm?: number;
+  chords?: string[];
+  error_message?: string;
+}
+
+interface AnalysisResult {
+  key: string;
+  bpm: number;
+  chords: string[];
+}
 
 export const AnalysisForm = () => {
   const [url, setUrl] = useState("");
@@ -22,25 +42,26 @@ export const AnalysisForm = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const { toast } = useToast();
 
-  const validateFile = (file: File) => {
+  const validateFile = async (file: File): Promise<boolean> => {
     if (!file) return false;
 
     // Check file extension
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    const isValidExtension = ALLOWED_FILE_EXTENSIONS.includes(fileExtension);
+    const isValidExtension = ALLOWED_FILE_EXTENSIONS.includes(fileExtension as typeof ALLOWED_FILE_EXTENSIONS[number]);
     
     // Check MIME type
-    const isValidMimeType = ALLOWED_AUDIO_TYPES.includes(file.type);
+    const isValidMimeType = ALLOWED_AUDIO_TYPES.includes(file.type as typeof ALLOWED_AUDIO_TYPES[number]);
 
     console.log('File validation:', {
       name: file.name,
       type: file.type,
       extension: fileExtension,
+      size: file.size,
       isValidExtension,
       isValidMimeType
     });
 
-    if (!isValidExtension && !isValidMimeType) {
+    if (!isValidExtension || !isValidMimeType) {
       toast({
         title: "Invalid File Type",
         description: "Please upload an audio file (MP3, WAV, M4A, AAC, or OGG)",
@@ -59,11 +80,59 @@ export const AnalysisForm = () => {
       return false;
     }
 
+    // Check audio duration
+    try {
+      const duration = await getAudioDuration(file);
+      if (duration < MIN_DURATION) {
+        toast({
+          title: "File Too Short",
+          description: "Audio file must be longer than 5 seconds",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error('Error checking audio duration:', error);
+      toast({
+        title: "Invalid Audio File",
+        description: "Could not verify audio duration. The file may be corrupted.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     return true;
+  };
+
+  const getAudioDuration = (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const audio = new Audio();
+      const objectUrl = URL.createObjectURL(file);
+      
+      const cleanup = () => {
+        URL.revokeObjectURL(objectUrl);
+        audio.remove();
+      };
+
+      audio.addEventListener('loadedmetadata', () => {
+        const duration = audio.duration;
+        cleanup();
+        resolve(duration);
+      });
+
+      audio.addEventListener('error', () => {
+        cleanup();
+        reject(new Error('Could not load audio file'));
+      });
+
+      audio.src = objectUrl;
+    });
   };
 
   const analyzeUrl = async () => {
     if (!url) return;
+
+    let analysis: AnalysisRecord | null = null;
 
     try {
       setIsLoading(true);
@@ -73,7 +142,7 @@ export const AnalysisForm = () => {
       if (!user.user) throw new Error("User not authenticated");
 
       // Create analysis record
-      const { data: analysis, error: insertError } = await supabase
+      const { data: analysisData, error: insertError } = await supabase
         .from('song_analysis')
         .insert({
           url,
@@ -85,11 +154,12 @@ export const AnalysisForm = () => {
         .single();
 
       if (insertError) throw insertError;
+      analysis = analysisData;
 
       console.log('Created analysis record:', analysis);
 
       // Call the analyze-song function
-      const { data, error: analysisError } = await supabase.functions.invoke('analyze-song', {
+      const { data, error: analysisError } = await supabase.functions.invoke<AnalysisResult>('analyze-song', {
         body: { url }
       });
 
@@ -114,13 +184,24 @@ export const AnalysisForm = () => {
         title: "Analysis Complete",
         description: "Your song has been successfully analyzed.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Analysis error:', error);
       toast({
         title: "Analysis Failed",
         description: error.message,
         variant: "destructive",
       });
+
+      // Update analysis record to failed state if it exists
+      if (analysis?.id) {
+        await supabase
+          .from('song_analysis')
+          .update({
+            status: 'failed',
+            error_message: error.message
+          })
+          .eq('id', analysis.id);
+      }
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
@@ -128,9 +209,15 @@ export const AnalysisForm = () => {
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    let analysis: AnalysisRecord | null = null;
+    let filePath: string | null = null;
+
     try {
-      const file = event.target.files?.[0];
-      if (!file || !validateFile(file)) return;
+      const isValid = await validateFile(file);
+      if (!isValid) return;
 
       setIsLoading(true);
       console.log('Starting file upload:', file.name);
@@ -139,29 +226,10 @@ export const AnalysisForm = () => {
       if (!user.user) throw new Error("User not authenticated");
 
       // Generate file path
-      const filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
+      filePath = `${user.user.id}/${crypto.randomUUID()}-${file.name}`;
       
-      // Upload file directly to Supabase storage
-      const { error: uploadError } = await supabase.storage
-        .from('audio_files')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type,
-          // @ts-ignore - Supabase types are outdated
-          onProgress: (progress: { loadedBytes: number; totalBytes: number }) => {
-            const percentage = (progress.loadedBytes / progress.totalBytes) * 100;
-            setUploadProgress(Math.round(percentage));
-            console.log(`Upload progress: ${percentage}%`);
-          }
-        });
-
-      if (uploadError) throw uploadError;
-
-      console.log('File uploaded successfully');
-
-      // Create analysis record
-      const { data: analysis, error: insertError } = await supabase
+      // Create analysis record first
+      const { data: analysisData, error: insertError } = await supabase
         .from('song_analysis')
         .insert({
           file_path: filePath,
@@ -173,11 +241,30 @@ export const AnalysisForm = () => {
         .single();
 
       if (insertError) throw insertError;
+      analysis = analysisData;
 
       console.log('Created analysis record:', analysis);
+      
+      // Upload file to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('audio_files')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+          onUploadProgress: (progress) => {
+            const percentage = (progress.loaded / progress.total) * 100;
+            setUploadProgress(Math.round(percentage));
+            console.log(`Upload progress: ${percentage}%`);
+          }
+        });
+
+      if (uploadError) throw uploadError;
+
+      console.log('File uploaded successfully');
 
       // Call the analyze-song function
-      const { data, error: analysisError } = await supabase.functions.invoke('analyze-song', {
+      const { data, error: analysisError } = await supabase.functions.invoke<AnalysisResult>('analyze-song', {
         body: { filePath }
       });
 
@@ -202,16 +289,36 @@ export const AnalysisForm = () => {
         title: "Analysis Complete",
         description: "Your song has been successfully analyzed.",
       });
-    } catch (error) {
-      console.error('Upload error:', error);
+    } catch (error: any) {
+      console.error('Upload/analysis error:', error);
       toast({
-        title: "Upload Failed",
+        title: "Process Failed",
         description: error.message,
         variant: "destructive",
       });
+
+      // Update analysis record to failed state if it exists
+      if (analysis?.id) {
+        await supabase
+          .from('song_analysis')
+          .update({
+            status: 'failed',
+            error_message: error.message
+          })
+          .eq('id', analysis.id);
+      }
+
+      // Clean up uploaded file if analysis failed
+      if (filePath) {
+        await supabase.storage
+          .from('audio_files')
+          .remove([filePath]);
+      }
     } finally {
       setIsLoading(false);
       setUploadProgress(0);
+      // Clear the file input
+      event.target.value = '';
     }
   };
 
@@ -233,12 +340,12 @@ export const AnalysisForm = () => {
       <div className="flex items-center gap-4">
         <Input
           type="file"
-          accept="audio/*"
+          accept={ALLOWED_AUDIO_TYPES.join(',')}
           onChange={handleFileUpload}
           disabled={isLoading}
         />
         <Button disabled={isLoading}>
-          {isLoading ? "Uploading..." : "Upload File"}
+          {isLoading ? "Processing..." : "Upload File"}
         </Button>
       </div>
 
