@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 import { analyzeAudio } from './klangio-service.ts'
@@ -32,10 +33,7 @@ const createErrorResponse = (error: Error, status = 500) => {
 };
 
 const createBlobFromArrayBuffer = async (buffer: ArrayBuffer, type: string): Promise<Blob> => {
-  // Convert ArrayBuffer to Uint8Array
   const uint8Array = new Uint8Array(buffer);
-  
-  // Create a blob with the correct content type
   return new Blob([uint8Array], { type });
 };
 
@@ -57,14 +55,20 @@ serve(async (req) => {
       return createErrorResponse(new Error('Klangio API key not configured'), 500);
     }
 
+    // Get Supabase credentials from environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseKey = Deno.env.get('SUPABASE_KEY');
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Supabase credentials not configured');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase configuration:', {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!supabaseServiceKey
+      });
       return createErrorResponse(new Error('Supabase credentials not configured'), 500);
     }
-    
-    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Create Supabase client with service role key for full access
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     let audioData: Blob;
 
     if (filePath) {
@@ -207,3 +211,4 @@ serve(async (req) => {
     return createErrorResponse(error, 500);
   }
 });
+

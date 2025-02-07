@@ -83,6 +83,7 @@ export type Database = {
           bpm: number | null
           chords: string[] | null
           created_at: string
+          error_message: string | null
           file_path: string | null
           id: string
           key: string | null
@@ -96,6 +97,7 @@ export type Database = {
           bpm?: number | null
           chords?: string[] | null
           created_at?: string
+          error_message?: string | null
           file_path?: string | null
           id?: string
           key?: string | null
@@ -109,6 +111,7 @@ export type Database = {
           bpm?: number | null
           chords?: string[] | null
           created_at?: string
+          error_message?: string | null
           file_path?: string | null
           id?: string
           key?: string | null
