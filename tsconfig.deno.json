@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
     "composite": true,
-    "skipLibCheck": true,
-    "noEmit": true
+    "skipLibCheck": true
   },
   "include": ["types/global.d.ts"]
 }
