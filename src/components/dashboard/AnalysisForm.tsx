@@ -158,9 +158,9 @@ export const AnalysisForm = () => {
 
       console.log('Created analysis record:', analysis);
 
-      // Call the analyze-song function
-      const { data, error: analysisError } = await supabase.functions.invoke<AnalysisResult>('analyze-song', {
-        body: { url }
+      // Call the FADR analyze function
+      const { data, error: analysisError } = await supabase.functions.invoke('analyze-song-fadr', {
+        body: { audioUrl: url }
       });
 
       if (analysisError) {
@@ -168,8 +168,8 @@ export const AnalysisForm = () => {
         throw new Error(analysisError.message || 'Analysis failed');
       }
 
-      if (!data) {
-        throw new Error('No analysis results received');
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'No analysis results received');
       }
 
       console.log('Analysis complete:', data);
@@ -178,9 +178,9 @@ export const AnalysisForm = () => {
       const { error: updateError } = await supabase
         .from('song_analysis')
         .update({
-          key: data.key,
-          bpm: data.bpm,
-          chords: data.chords,
+          key: data.data.key,
+          bpm: data.data.tempo,
+          chords: data.data.chords.map((chord: any) => chord.chord),
           status: 'completed'
         })
         .eq('id', analysis.id);
@@ -288,8 +288,8 @@ export const AnalysisForm = () => {
         size: file.size
       });
 
-      // Call the analyze-song function
-      const { data, error: analysisError } = await supabase.functions.invoke<AnalysisResult>('analyze-song', {
+      // Call the FADR analyze function
+      const { data, error: analysisError } = await supabase.functions.invoke('analyze-song-fadr', {
         body: { filePath }
       });
 
@@ -298,8 +298,8 @@ export const AnalysisForm = () => {
         throw new Error(analysisError.message || 'Analysis failed');
       }
 
-      if (!data) {
-        throw new Error('No analysis results received');
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'No analysis results received');
       }
 
       console.log('Analysis complete:', data);
@@ -308,9 +308,9 @@ export const AnalysisForm = () => {
       const { error: updateError } = await supabase
         .from('song_analysis')
         .update({
-          key: data.key,
-          bpm: data.bpm,
-          chords: data.chords,
+          key: data.data.key,
+          bpm: data.data.tempo,
+          chords: data.data.chords.map((chord: any) => chord.chord),
           status: 'completed'
         })
         .eq('id', analysis.id);
