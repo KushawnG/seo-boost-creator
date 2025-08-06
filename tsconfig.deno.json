@@ -1,19 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "lib": ["ES2022", "DOM"],
-    "moduleResolution": "bundler",
-    "types": ["deno-types"],
-    "typeRoots": ["./deno-types"],
-    "paths": {
-      "https://*": ["./deno-types/*"]
-    },
-    "strict": true,
+    "composite": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "noEmit": true
   },
-  "include": [
-    "supabase/functions/**/*.ts"
-  ]
+  "include": ["types/global.d.ts"]
 }
