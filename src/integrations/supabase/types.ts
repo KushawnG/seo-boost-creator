@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      song_analysis: {
+        Row: {
+          bpm: number | null
+          chords: string[] | null
+          created_at: string
+          error_message: string | null
+          file_path: string | null
+          id: string
+          key: string | null
+          status: string
+          title: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          bpm?: number | null
+          chords?: string[] | null
+          created_at?: string
+          error_message?: string | null
+          file_path?: string | null
+          id?: string
+          key?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          bpm?: number | null
+          chords?: string[] | null
+          created_at?: string
+          error_message?: string | null
+          file_path?: string | null
+          id?: string
+          key?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           created_at: string
