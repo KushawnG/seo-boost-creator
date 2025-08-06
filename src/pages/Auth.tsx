@@ -21,13 +21,17 @@ const Auth = () => {
       if (event === 'SIGNED_IN') {
         if (session) {
           // Check if user already has a subscription
-          const { data: existingSub } = await supabase
+          const { data: existingSub, error: subCheckError } = await supabase
             .from('subscriptions')
             .select('*')
             .eq('user_id', session.user.id)
-            .single();
+            .maybeSingle();
 
-          if (!existingSub) {
+          if (subCheckError) {
+            console.error('Error checking subscription:', subCheckError);
+          }
+
+          if (!existingSub && !subCheckError) {
             // Create free subscription for new user
             const { error: subError } = await supabase
               .from('subscriptions')
@@ -40,12 +44,12 @@ const Auth = () => {
 
             if (subError) {
               console.error('Error creating subscription:', subError);
+              // Don't block sign-in for subscription creation errors
               toast({
-                title: "Error",
-                description: "There was a problem setting up your account. Please try again.",
+                title: "Warning",
+                description: "Account created but there was an issue setting up your subscription. Please contact support.",
                 variant: "destructive",
               });
-              return;
             }
           }
 
@@ -93,7 +97,7 @@ const Auth = () => {
               },
             }}
             providers={[]}
-            redirectTo={`${window.location.origin}/auth/callback`}
+            redirectTo={`${window.location.origin}/dashboard`}
           />
         </div>
       </div>
