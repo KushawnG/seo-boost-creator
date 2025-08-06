@@ -1,10 +1,3 @@
-// Deno types for Supabase edge functions
-/// <reference lib="deno.ns" />
+/// <reference path="./lib.deno.d.ts" />
 
-declare namespace Deno {
-  export namespace env {
-    export function get(key: string): string | undefined;
-  }
-}
-
-export {};
+export * from "./lib.deno.d.ts";
