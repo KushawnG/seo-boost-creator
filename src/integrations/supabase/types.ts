@@ -16,46 +16,61 @@ export type Database = {
     Tables: {
       song_analysis: {
         Row: {
+          beats: Json | null
           bpm: number | null
           chords: string[] | null
+          chords_timeline: Json | null
           created_at: string
+          duration: number | null
           error_message: string | null
           file_path: string | null
           id: string
           key: string | null
           status: string
+          time_signature: string | null
           title: string
           updated_at: string
           url: string | null
           user_id: string
+          youtube_id: string | null
         }
         Insert: {
+          beats?: Json | null
           bpm?: number | null
           chords?: string[] | null
+          chords_timeline?: Json | null
           created_at?: string
+          duration?: number | null
           error_message?: string | null
           file_path?: string | null
           id?: string
           key?: string | null
           status?: string
+          time_signature?: string | null
           title: string
           updated_at?: string
           url?: string | null
           user_id: string
+          youtube_id?: string | null
         }
         Update: {
+          beats?: Json | null
           bpm?: number | null
           chords?: string[] | null
+          chords_timeline?: Json | null
           created_at?: string
+          duration?: number | null
           error_message?: string | null
           file_path?: string | null
           id?: string
           key?: string | null
           status?: string
+          time_signature?: string | null
           title?: string
           updated_at?: string
           url?: string | null
           user_id?: string
+          youtube_id?: string | null
         }
         Relationships: []
       }

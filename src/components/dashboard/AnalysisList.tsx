@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -44,7 +45,10 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
 
       if (error) throw error;
       return data as Analysis[];
-    }
+    },
+    // Refresh while any analysis is still running
+    refetchInterval: (query) =>
+      query.state.data?.some((a) => a.status === 'pending') ? 3000 : false,
   });
 
   const handleDelete = async (id: string) => {
@@ -109,14 +113,23 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
               {new Date(analysis.created_at).toLocaleDateString()}
             </TableCell>
             <TableCell>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleDelete(analysis.id)}
-                className="h-8 w-8"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-1">
+                {analysis.status === 'completed' && (
+                  <Link to={`/dashboard/analysis/${analysis.id}`}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title="View chords">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleDelete(analysis.id)}
+                  className="h-8 w-8"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </TableCell>
           </TableRow>
         ))}

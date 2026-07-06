@@ -9,6 +9,7 @@ import { SessionContextProvider } from '@supabase/auth-helpers-react';
 import Index from "./pages/Index";
 import AuthPage from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import AnalysisDetail from "./pages/AnalysisDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -71,6 +72,11 @@ const App = () => (
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard/analysis/:id" element={
+              <ProtectedRoute>
+                <AnalysisDetail />
               </ProtectedRoute>
             } />
             <Route path="/" element={<Index />} />
