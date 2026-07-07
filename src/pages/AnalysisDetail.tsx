@@ -229,6 +229,7 @@ const AnalysisDetail = () => {
                   <button
                     key={`${start}-${idx}`}
                     data-chord-idx={idx}
+                    title={isNoChord(name) ? "No chord" : undefined}
                     onClick={() => seekTo(start)}
                     style={{ minWidth: Math.max(56, (end - start) * PIXELS_PER_SECOND) }}
                     className={cn(

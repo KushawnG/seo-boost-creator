@@ -56,8 +56,10 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   }
 
   // YouTube blocks stream access per client from datacenter IPs; IOS is the
-  // most reliable as of mid-2026, the rest are fallbacks.
-  const clients = ['IOS', 'ANDROID', 'TV'] as const;
+  // most reliable as of mid-2026, the rest are fallbacks. Label-protected
+  // videos may reject all of them ("login required") — nothing recoverable
+  // server-side, so the error tells users to upload the file instead.
+  const clients = ['IOS', 'ANDROID', 'TV', 'MWEB'] as const;
   let lastError: Error | null = null;
 
   for (const client of clients) {

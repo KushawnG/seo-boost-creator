@@ -163,6 +163,22 @@ async function getAudioSource(
     const youtubeId = extractYouTubeId(analysis.url);
     if (youtubeId) {
       const { blob, title, duration } = await fetchYouTubeAudio(youtubeId);
+
+      // Keep the extracted audio so the analysis survives the video going
+      // away and users can replay their history
+      const storagePath = `${analysis.user_id}/youtube-${youtubeId}.m4a`;
+      const { error: uploadError } = await supabase.storage
+        .from('audio_files')
+        .upload(storagePath, blob, { contentType: 'audio/mp4', upsert: true });
+      if (uploadError) {
+        console.warn('Could not store YouTube audio:', uploadError.message);
+      } else {
+        await supabase
+          .from('song_analysis')
+          .update({ file_path: storagePath })
+          .eq('id', analysis.id);
+      }
+
       return { blob, filename: 'audio.m4a', title, duration, youtubeId };
     }
 

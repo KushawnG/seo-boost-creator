@@ -15,9 +15,12 @@ const SUFFIX_LABELS: Record<string, string> = {
   min6: 'm6',
 };
 
+/** Musical rest — shown where no chord sounds. */
+export const NO_CHORD_SYMBOL = '𝄽';
+
 /** Turn Klangio chord names ("A:min", "F#:maj") into display names ("Am", "F#"). */
 export function formatChordName(chord: string): string {
-  if (chord === 'N' || chord === 'X') return 'N.C.';
+  if (chord === 'N' || chord === 'X') return NO_CHORD_SYMBOL;
   const [root, suffix] = chord.split(':');
   if (!suffix) return root;
   return root + (SUFFIX_LABELS[suffix] ?? suffix);
