@@ -12,6 +12,9 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // { resume: true } undoes a scheduled cancellation
+    const { resume = false } = await req.json().catch(() => ({}));
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -38,17 +41,18 @@ Deno.serve(async (req) => {
     });
 
     // Cancel at period end so the user keeps what they paid for; the
-    // customer.subscription.deleted webhook moves them to free afterwards
+    // customer.subscription.deleted webhook moves them to free afterwards.
+    // Resuming simply clears the scheduled cancellation.
     await stripe.subscriptions.update(subRow.stripe_subscription_id, {
-      cancel_at_period_end: true,
+      cancel_at_period_end: !resume,
     });
 
     await supabase
       .from('subscriptions')
-      .update({ cancel_at_period_end: true })
+      .update({ cancel_at_period_end: !resume })
       .eq('user_id', user.id);
 
-    return json({ success: true }, 200);
+    return json({ success: true, resumed: resume }, 200);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Cancel error';
     console.error('Error canceling subscription:', message);

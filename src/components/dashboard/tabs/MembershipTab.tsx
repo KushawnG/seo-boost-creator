@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Database } from "@/integrations/supabase/types";
 import { Music, Zap, Clock } from "lucide-react";
 import { PlanCard } from "../membership/PlanCard";
@@ -49,6 +50,7 @@ const PLANS = {
 
 export const MembershipTab = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
 
   const { data: subscription } = useQuery({
@@ -102,22 +104,52 @@ export const MembershipTab = () => {
     }
   };
 
-  const handleDowngrade = async () => {
+  const handleCancel = async () => {
+    const confirmed = window.confirm(
+      "Cancel your subscription? You keep your current plan until the end of the billing period, then move to the Free plan. You can resume anytime before then."
+    );
+    if (!confirmed) return;
+
     try {
       setIsLoading(true);
-      const { error } = await supabase.functions.invoke('cancel-subscription');
-
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke('cancel-subscription', { body: {} });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
 
       toast({
-        title: "Success",
-        description: "Your subscription will be downgraded to the Free plan at the end of your billing period.",
+        title: "Subscription canceled",
+        description: "You keep your plan until the end of the billing period — then you'll move to the Free plan. No further charges.",
       });
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
     } catch (error) {
       console.error('Error canceling subscription:', error);
       toast({
         title: "Error",
-        description: "Failed to downgrade subscription. Please try again.",
+        description: "Failed to cancel subscription. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResume = async () => {
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase.functions.invoke('cancel-subscription', {
+        body: { resume: true }
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+
+      toast({
+        title: "Subscription resumed",
+        description: "Your plan will continue to renew as usual. Welcome back!",
+      });
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+    } catch (error) {
+      console.error('Error resuming subscription:', error);
+      toast({
+        title: "Error",
+        description: "Failed to resume subscription. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -139,7 +171,29 @@ export const MembershipTab = () => {
         <CardContent className="p-6">
           <div className="space-y-6">
             <CurrentPlan subscription={subscription} />
-            <CreditsProgress 
+
+            {isPaidPlan && subscription?.stripe_subscription_id && (
+              subscription.cancel_at_period_end ? (
+                <Button
+                  variant="outline"
+                  onClick={handleResume}
+                  disabled={isLoading}
+                >
+                  Resume subscription
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={handleCancel}
+                  disabled={isLoading}
+                >
+                  Cancel subscription
+                </Button>
+              )
+            )}
+
+            <CreditsProgress
               subscription={subscription}
               creditsTotal={creditsTotal}
               creditsPercent={creditsPercent}
@@ -158,7 +212,7 @@ export const MembershipTab = () => {
                       {...plan}
                       isCurrentPlan={isCurrentPlan}
                       isLoading={isLoading}
-                      onUpgrade={showDowngrade ? handleDowngrade : handleUpgrade}
+                      onUpgrade={showDowngrade ? handleCancel : handleUpgrade}
                       buttonText={showDowngrade ? "Downgrade to Free" : isCurrentPlan ? "Current Plan" : `Upgrade to ${plan.title}`}
                     />
                   );
