@@ -76,6 +76,7 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          cancel_at_period_end: boolean
           created_at: string
           credits_remaining: number
           credits_reset_at: string
@@ -92,6 +93,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancel_at_period_end?: boolean
           created_at?: string
           credits_remaining?: number
           credits_reset_at?: string
@@ -108,6 +110,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cancel_at_period_end?: boolean
           created_at?: string
           credits_remaining?: number
           credits_reset_at?: string
