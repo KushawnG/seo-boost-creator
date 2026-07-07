@@ -1,79 +1,138 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { Auth as SupabaseAuth } from "@supabase/auth-ui-react";
-import { ThemeSupa } from "@supabase/auth-ui-shared";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type { AuthError } from "@supabase/supabase-js";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
+
+type Mode = "signin" | "signup" | "forgot" | "recovery";
 
 const Auth = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [errorMessage, setErrorMessage] = useState("");
   const { toast } = useToast();
-  const isSignUp = searchParams.get("signup") === "true";
+
+  const [mode, setMode] = useState<Mode>(
+    searchParams.get("signup") === "true" ? "signup" : "signin",
+  );
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, !!session);
-      
-      if (event === 'SIGNED_IN') {
-        if (session) {
-          // Check if user already has a subscription
-          const { data: existingSub, error: subCheckError } = await supabase
-            .from('subscriptions')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
+      if (event === "PASSWORD_RECOVERY") {
+        setMode("recovery");
+        setInfoMessage("Enter a new password for your account.");
+        return;
+      }
 
-          if (subCheckError) {
-            console.error('Error checking subscription:', subCheckError);
-          }
+      if (event === "SIGNED_IN" && session && modeRef.current !== "recovery") {
+        // Make sure the user has a subscription row (free plan by default)
+        const { data: existingSub, error: subCheckError } = await supabase
+          .from("subscriptions")
+          .select("id")
+          .eq("user_id", session.user.id)
+          .maybeSingle();
 
-          if (!existingSub && !subCheckError) {
-            // Create free subscription for new user
-            const { error: subError } = await supabase
-              .from('subscriptions')
-              .insert({
-                user_id: session.user.id,
-                plan_type: 'free',
-                credits_remaining: 5,
-                credits_total: 5
-              });
-
-            if (subError) {
-              console.error('Error creating subscription:', subError);
-              // Don't block sign-in for subscription creation errors
-              toast({
-                title: "Warning",
-                description: "Account created but there was an issue setting up your subscription. Please contact support.",
-                variant: "destructive",
-              });
-            }
-          }
-
-          toast({
-            title: "Success",
-            description: "You have successfully signed in.",
+        if (!existingSub && !subCheckError) {
+          const { error: subError } = await supabase.from("subscriptions").insert({
+            user_id: session.user.id,
+            plan_type: "free",
+            credits_remaining: 5,
+            credits_total: 5,
           });
-          navigate('/dashboard');
+          if (subError) {
+            console.error("Error creating subscription:", subError);
+          }
         }
-      } else if (event === 'SIGNED_OUT') {
-        setErrorMessage("");
+
+        navigate("/dashboard");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, toast]);
+  }, [navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
+    setInfoMessage("");
+    setIsLoading(true);
+
+    try {
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        // navigation happens in the SIGNED_IN listener
+      } else if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+        });
+        if (error) throw error;
+        if (data.user && !data.session) {
+          setInfoMessage("Check your inbox — we sent you a link to confirm your account.");
+        }
+      } else if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth`,
+        });
+        if (error) throw error;
+        setInfoMessage("Check your inbox — we sent you a password reset link.");
+      } else if (mode === "recovery") {
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw error;
+        toast({ title: "Password updated", description: "You're all set." });
+        navigate("/dashboard");
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Something went wrong";
+      setErrorMessage(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const heading =
+    mode === "signup" ? "Create your account"
+    : mode === "forgot" ? "Reset your password"
+    : mode === "recovery" ? "Set a new password"
+    : "Sign in to your account";
+
+  const submitLabel =
+    mode === "signup" ? "Sign up"
+    : mode === "forgot" ? "Send reset link"
+    : mode === "recovery" ? "Update password"
+    : "Sign in";
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setErrorMessage("");
+    setInfoMessage("");
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
-            {isSignUp ? "Create your account" : "Sign in to your account"}
-          </h2>
+          <Link to="/" className="inline-block">
+            <img
+              src="/Chord-Finder-Ai-Logo-Icon-Only.png"
+              alt="Chord Finder AI"
+              className="h-12 w-12 mx-auto"
+            />
+          </Link>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">{heading}</h2>
         </div>
 
         {errorMessage && (
@@ -81,24 +140,85 @@ const Auth = () => {
             <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
         )}
+        {infoMessage && (
+          <Alert>
+            <AlertDescription>{infoMessage}</AlertDescription>
+          </Alert>
+        )}
 
-        <div className="mt-8">
-          <SupabaseAuth
-            supabaseClient={supabase}
-            appearance={{
-              theme: ThemeSupa,
-              variables: {
-                default: {
-                  colors: {
-                    brand: '#000000',
-                    brandAccent: '#666666',
-                  },
-                },
-              },
-            }}
-            providers={[]}
-            redirectTo={`${window.location.origin}/dashboard`}
-          />
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          {mode !== "recovery" && (
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                disabled={isLoading}
+              />
+            </div>
+          )}
+
+          {mode !== "forgot" && (
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                {mode === "recovery" ? "New password" : "Password"}
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                disabled={isLoading}
+              />
+            </div>
+          )}
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {submitLabel}
+          </Button>
+        </form>
+
+        <div className="text-center text-sm text-gray-600 space-y-2">
+          {mode === "signin" && (
+            <>
+              <p>
+                Don't have an account?{" "}
+                <button onClick={() => switchMode("signup")} className="font-medium text-gray-900 underline">
+                  Sign up
+                </button>
+              </p>
+              <p>
+                <button onClick={() => switchMode("forgot")} className="underline">
+                  Forgot your password?
+                </button>
+              </p>
+            </>
+          )}
+          {mode === "signup" && (
+            <p>
+              Already have an account?{" "}
+              <button onClick={() => switchMode("signin")} className="font-medium text-gray-900 underline">
+                Sign in
+              </button>
+            </p>
+          )}
+          {(mode === "forgot" || mode === "recovery") && (
+            <p>
+              <button onClick={() => switchMode("signin")} className="underline">
+                Back to sign in
+              </button>
+            </p>
+          )}
         </div>
       </div>
     </div>
