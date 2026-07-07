@@ -47,8 +47,8 @@ const Auth = () => {
           const { error: subError } = await supabase.from("subscriptions").insert({
             user_id: session.user.id,
             plan_type: "free",
-            credits_remaining: 5,
-            credits_total: 5,
+            credits_remaining: 3,
+            credits_total: 3,
           });
           if (subError) {
             console.error("Error creating subscription:", subError);

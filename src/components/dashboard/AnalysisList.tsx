@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Eye, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { planFor } from "@/lib/plans";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -25,8 +26,25 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('plan_type, credits_remaining, credits_total')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const historyLimit = planFor(subscription?.plan_type).historyLimit;
+
   const { data: analyses, isLoading } = useQuery({
-    queryKey: ['analyses', { showAll }],
+    queryKey: ['analyses', { showAll, historyLimit }],
     queryFn: async () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("User not authenticated");
@@ -39,6 +57,8 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
 
       if (!showAll) {
         query = query.limit(5);
+      } else if (historyLimit) {
+        query = query.limit(historyLimit);
       }
 
       const { data, error } = await query;
@@ -87,6 +107,12 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   }
 
   return (
+    <div className="space-y-3">
+    {showAll && historyLimit && analyses.length >= historyLimit && (
+      <p className="text-sm text-gray-500">
+        The Free plan keeps your {historyLimit} most recent analyses. Upgrade to Pro or Premium for unlimited history.
+      </p>
+    )}
     <Table>
       <TableHeader>
         <TableRow>
@@ -135,5 +161,6 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 };

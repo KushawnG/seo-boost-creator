@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { planFor } from "@/lib/plans";
 import { Home, List, User, CreditCard, Settings, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { UserSettings } from "@/components/dashboard/UserSettings";
@@ -16,6 +18,24 @@ const Dashboard = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("home");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const { data: subscription } = useQuery({
+    queryKey: ['subscription'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('plan_type, credits_remaining, credits_total')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const plan = planFor(subscription?.plan_type);
+  const creditsRemaining = subscription?.credits_remaining ?? plan.monthlyCredits;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -145,12 +165,12 @@ const Dashboard = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
             <h1 className="text-2xl font-bold">Dashboard</h1>
             <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
-              <div className="text-sm md:text-base">Credits: <span className="font-semibold">5</span> Remaining</div>
-              <Button 
+              <div className="text-sm md:text-base">Credits: <span className="font-semibold">{creditsRemaining}</span> Remaining</div>
+              <Button
                 onClick={() => setActiveTab("membership")}
                 className="w-full md:w-auto"
               >
-                Free Plan
+                {plan.name}
               </Button>
             </div>
           </div>

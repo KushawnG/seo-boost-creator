@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { extractYouTubeId } from "@/lib/youtube";
+import { MAX_SONG_SECONDS } from "@/lib/plans";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Upload } from "lucide-react";
 
@@ -61,6 +62,7 @@ export const AnalysisForm = () => {
       setIsSubmitting(false);
       queryClient.invalidateQueries({ queryKey: ['analyses'] });
       queryClient.invalidateQueries({ queryKey: ['recent-analyses'] });
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
       toast({
         title: "Analysis Complete",
         description: "Opening your chord sheet...",
@@ -191,6 +193,14 @@ export const AnalysisForm = () => {
         toast({
           title: "File Too Short",
           description: "Audio file must be longer than 5 seconds",
+          variant: "destructive",
+        });
+        return false;
+      }
+      if (duration > MAX_SONG_SECONDS) {
+        toast({
+          title: "Song Too Long",
+          description: "Songs up to 5 minutes are supported. Please trim the audio and try again.",
           variant: "destructive",
         });
         return false;

@@ -78,6 +78,7 @@ export type Database = {
         Row: {
           created_at: string
           credits_remaining: number
+          credits_reset_at: string
           credits_total: number
           current_period_end: string | null
           current_period_start: string | null
@@ -93,6 +94,7 @@ export type Database = {
         Insert: {
           created_at?: string
           credits_remaining?: number
+          credits_reset_at?: string
           credits_total?: number
           current_period_end?: string | null
           current_period_start?: string | null
@@ -108,6 +110,7 @@ export type Database = {
         Update: {
           created_at?: string
           credits_remaining?: number
+          credits_reset_at?: string
           credits_total?: number
           current_period_end?: string | null
           current_period_start?: string | null

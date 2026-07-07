@@ -51,23 +51,23 @@ const Index = () => {
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>5 song analyses per month</span>
+                  <span>3 song analyses per month</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>Up to 30 seconds per song</span>
+                  <span>Songs up to 5 minutes</span>
                 </li>
                 <li className="flex items-center">
                   <Zap className="h-5 w-5 text-primary mr-2" />
-                  <span>Chord Detection</span>
+                  <span>Chords, key &amp; BPM detection</span>
                 </li>
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>Key Detection</span>
+                  <span>Beat-synced chord player</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>BPM Detection</span>
+                  <span>Last 5 analyses saved</span>
                 </li>
                 <li className="flex items-center text-gray-500">
                   <span>Renews monthly for free</span>
@@ -80,27 +80,27 @@ const Index = () => {
             
             <Card className="p-8 border-primary">
               <h3 className="text-xl font-semibold mb-4">Pro</h3>
-              <div className="text-4xl font-bold mb-6">$9<span className="text-lg text-gray-500">/month</span></div>
+              <div className="text-4xl font-bold mb-6">$12<span className="text-lg text-gray-500">/month</span></div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>25 song analyses per month</span>
+                  <span>15 song analyses per month</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>Up to 4 minutes per song</span>
+                  <span>Songs up to 5 minutes</span>
                 </li>
                 <li className="flex items-center">
                   <Zap className="h-5 w-5 text-primary mr-2" />
-                  <span>Chord Detection</span>
+                  <span>Chords, key &amp; BPM detection</span>
                 </li>
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>Key Detection</span>
+                  <span>Beat-synced chord player</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>BPM Detection</span>
+                  <span>Unlimited song history</span>
                 </li>
                 <li className="flex items-center text-gray-500">
                   <span>Cancel or change plan anytime</span>
@@ -113,27 +113,27 @@ const Index = () => {
             
             <Card className="p-8">
               <h3 className="text-xl font-semibold mb-4">Premium</h3>
-              <div className="text-4xl font-bold mb-6">$25<span className="text-lg text-gray-500">/month</span></div>
+              <div className="text-4xl font-bold mb-6">$29<span className="text-lg text-gray-500">/month</span></div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>100 song analyses per month</span>
+                  <span>40 song analyses per month</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>Up to 4 minutes per song</span>
+                  <span>Songs up to 5 minutes</span>
                 </li>
                 <li className="flex items-center">
                   <Zap className="h-5 w-5 text-primary mr-2" />
-                  <span>Chord Detection</span>
+                  <span>Chords, key &amp; BPM detection</span>
                 </li>
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>Key Detection</span>
+                  <span>Beat-synced chord player</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
-                  <span>BPM Detection</span>
+                  <span>Unlimited song history</span>
                 </li>
                 <li className="flex items-center text-gray-500">
                   <span>Cancel or change plan anytime</span>

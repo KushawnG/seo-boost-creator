@@ -17,31 +17,31 @@ const PLANS = {
     price: "$0/mo",
     priceId: "price_1Qbl8cKtE1i0bFDa050g8sXL",
     features: [
-      { icon: Music, text: "5 analyses/month" },
-      { icon: Clock, text: "30 sec per song" },
-      { icon: Zap, text: "Basic features" }
+      { icon: Music, text: "3 analyses/month" },
+      { icon: Clock, text: "Songs up to 5 min" },
+      { icon: Zap, text: "Last 5 analyses saved" }
     ],
     footnote: "Renews monthly for free"
   },
   PRO: {
     title: "Pro Plan",
-    price: "$9/mo",
+    price: "$12/mo",
     priceId: "price_1Qbl93KtE1i0bFDasRX5eE37",
     features: [
-      { icon: Music, text: "25 analyses/month" },
-      { icon: Clock, text: "4 min per song" },
-      { icon: Zap, text: "All basic features" }
+      { icon: Music, text: "15 analyses/month" },
+      { icon: Clock, text: "Songs up to 5 min" },
+      { icon: Zap, text: "Unlimited history" }
     ],
     footnote: "Cancel anytime"
   },
   PREMIUM: {
     title: "Premium Plan",
-    price: "$25/mo",
+    price: "$29/mo",
     priceId: "price_1Qbl9VKtE1i0bFDaHWBPtG7g",
     features: [
-      { icon: Music, text: "100 analyses/month" },
-      { icon: Clock, text: "4 min per song" },
-      { icon: Zap, text: "All basic features" }
+      { icon: Music, text: "40 analyses/month" },
+      { icon: Clock, text: "Songs up to 5 min" },
+      { icon: Zap, text: "Unlimited history" }
     ],
     footnote: "Cancel anytime"
   }
@@ -69,8 +69,8 @@ export const MembershipTab = () => {
       if (!data) {
         return {
           plan_type: 'free',
-          credits_remaining: 5,
-          credits_total: 5,
+          credits_remaining: 3,
+          credits_total: 3,
           current_period_end: null,
           current_period_start: null,
           cancel_at_period_end: false,

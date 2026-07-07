@@ -1,7 +1,8 @@
 import { Innertube } from 'npm:youtubei.js@13';
 
-// Keep quota usage sane: longest song we will pull from YouTube
-const MAX_DURATION_SECONDS = 10 * 60;
+// All plans support songs up to 5 minutes (Klangio Startup's hard cap is
+// 300s); the slack covers metadata rounding.
+const MAX_DURATION_SECONDS = 5 * 60 + 20;
 
 const YOUTUBE_ID_PATTERN =
   /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/;
@@ -116,7 +117,7 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
 
   if (duration > MAX_DURATION_SECONDS) {
     throw new Error(
-      `This video is ${Math.round(duration / 60)} minutes long. Please use a video shorter than ${MAX_DURATION_SECONDS / 60} minutes.`,
+      `This video is ${Math.ceil(duration / 60)} minutes long — songs up to 5 minutes are supported. Please use a shorter video or upload a trimmed audio file.`,
     );
   }
 
