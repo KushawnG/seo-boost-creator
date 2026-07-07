@@ -17,8 +17,33 @@ export interface YouTubeAudio {
   duration: number;
 }
 
+// Route all youtubei.js traffic through the runtime's native fetch: the Node
+// compat path crashes the worker on YouTube's brotli responses. Native fetch
+// also rejects the library's own Request objects, so unwrap them.
+// deno-lint-ignore no-explicit-any
+async function nativeFetch(input: any, init?: RequestInit): Promise<Response> {
+  if (typeof input === 'object' && input !== null && 'url' in input) {
+    const body = input.method === 'GET' || input.method === 'HEAD'
+      ? undefined
+      : await input.arrayBuffer();
+    return fetch(input.url, {
+      method: input.method,
+      headers: new Headers(input.headers),
+      body,
+      ...init,
+    });
+  }
+  return fetch(input, init);
+}
+
 export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> {
-  const yt = await Innertube.create({ generate_session_locally: true });
+  // retrieve_player: false skips fetching YouTube's player JS, which is
+  // rate-limited from datacenter IPs; the clients below don't need it.
+  const yt = await Innertube.create({
+    generate_session_locally: true,
+    retrieve_player: false,
+    fetch: nativeFetch,
+  });
 
   const info = await yt.getBasicInfo(videoId);
   const title = info.basic_info.title ?? 'YouTube video';
@@ -30,9 +55,9 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     );
   }
 
-  // Some clients are blocked or require signature deciphering depending on
-  // the video, so walk through a few until one yields a stream.
-  const clients = ['ANDROID', 'IOS', 'WEB'] as const;
+  // YouTube blocks stream access per client from datacenter IPs; IOS is the
+  // most reliable as of mid-2026, the rest are fallbacks.
+  const clients = ['IOS', 'ANDROID', 'TV'] as const;
   let lastError: Error | null = null;
 
   for (const client of clients) {
