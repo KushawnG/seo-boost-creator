@@ -86,6 +86,14 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     }
   }
 
+  // "Login required" is YouTube shielding label/copyright-protected content
+  // from server access — phrase it in terms users understand.
+  if (/login required/i.test(lastError?.message ?? '')) {
+    throw new Error(
+      'This song is copyright-protected on YouTube, so we can\'t analyze it from the link. Please upload the song\'s audio file instead (MP3, WAV, M4A, AAC, or OGG).',
+    );
+  }
+
   throw new Error(
     `Could not fetch audio from YouTube (${lastError?.message ?? 'unknown error'}). Please try uploading the audio file instead.`,
   );
