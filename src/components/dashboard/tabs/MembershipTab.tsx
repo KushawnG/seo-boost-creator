@@ -4,7 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import type { Database } from "@/integrations/supabase/types";
-import { Music, Zap, Clock, Lock } from "lucide-react";
+import { Music, Zap, Clock } from "lucide-react";
 import { PlanCard } from "../membership/PlanCard";
 import { CreditsProgress } from "../membership/CreditsProgress";
 import { CurrentPlan } from "../membership/CurrentPlan";
@@ -41,7 +41,7 @@ const PLANS = {
     features: [
       { icon: Music, text: "100 analyses/month" },
       { icon: Clock, text: "4 min per song" },
-      { icon: Lock, text: "Stem Splitter" }
+      { icon: Zap, text: "All basic features" }
     ],
     footnote: "Cancel anytime"
   }

@@ -1,0 +1,312 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, Loader2, Music } from "lucide-react";
+import { YouTubePlayer, type PlayerHandle } from "@/components/analysis/YouTubePlayer";
+import {
+  type Beat,
+  type ChordSpan,
+  beatIndexAt,
+  chordIndexAt,
+  formatChordName,
+  isNoChord,
+} from "@/lib/chords";
+import { cn } from "@/lib/utils";
+
+type Analysis = Database['public']['Tables']['song_analysis']['Row'];
+
+const PIXELS_PER_SECOND = 14;
+
+const AnalysisDetail = () => {
+  const { id } = useParams<{ id: string }>();
+
+  const { data: analysis, isLoading } = useQuery({
+    queryKey: ['analysis', id],
+    enabled: !!id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('song_analysis')
+        .select('*')
+        .eq('id', id!)
+        .single();
+      if (error) throw error;
+      return data as Analysis;
+    },
+    // Keep refreshing while the song is still being analyzed
+    refetchInterval: (query) =>
+      query.state.data?.status === 'pending' ? 3000 : false,
+  });
+
+  const { data: audioUrl } = useQuery({
+    queryKey: ['analysis-audio-url', analysis?.file_path],
+    enabled: !!analysis?.file_path,
+    staleTime: 50 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.storage
+        .from('audio_files')
+        .createSignedUrl(analysis!.file_path!, 60 * 60);
+      if (error) throw error;
+      return data.signedUrl;
+    },
+  });
+
+  const timeline = useMemo(
+    () => (Array.isArray(analysis?.chords_timeline) ? (analysis!.chords_timeline as unknown as ChordSpan[]) : []),
+    [analysis],
+  );
+  const beats = useMemo(
+    () => (Array.isArray(analysis?.beats) ? (analysis!.beats as unknown as Beat[]) : []),
+    [analysis],
+  );
+  const beatsPerBar = useMemo(
+    () => (beats.length ? Math.round(Math.max(...beats.map(([, p]) => p))) : 4),
+    [beats],
+  );
+
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const youtubeRef = useRef<PlayerHandle>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const time = audioRef.current
+        ? audioRef.current.currentTime
+        : youtubeRef.current?.getCurrentTime() ?? 0;
+      setCurrentTime(time);
+    }, 100);
+    return () => window.clearInterval(timer);
+  }, [analysis?.id]);
+
+  const chordIdx = chordIndexAt(timeline, currentTime);
+  const beatIdx = beatIndexAt(beats, currentTime);
+  const currentBeatPos = beatIdx >= 0 ? Math.round(beats[beatIdx][1]) : 0;
+
+  // Keep the active chord block centered in the strip
+  useEffect(() => {
+    if (chordIdx < 0 || !stripRef.current) return;
+    const block = stripRef.current.querySelector<HTMLElement>(`[data-chord-idx="${chordIdx}"]`);
+    block?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [chordIdx]);
+
+  const seekTo = useCallback((seconds: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = seconds;
+      audioRef.current.play().catch(() => {});
+    } else {
+      youtubeRef.current?.seekTo(seconds);
+    }
+  }, []);
+
+  if (isLoading) {
+    return (
+      <PageShell>
+        <div className="flex items-center gap-3 text-gray-600">
+          <Loader2 className="h-5 w-5 animate-spin" /> Loading analysis...
+        </div>
+      </PageShell>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <PageShell>
+        <p className="text-gray-600">Analysis not found.</p>
+      </PageShell>
+    );
+  }
+
+  if (analysis.status === 'pending') {
+    return (
+      <PageShell title={analysis.title}>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-6 text-gray-600">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Analyzing this song — detecting beats, key and chords. This page will update automatically.
+          </CardContent>
+        </Card>
+      </PageShell>
+    );
+  }
+
+  if (analysis.status === 'failed') {
+    return (
+      <PageShell title={analysis.title}>
+        <Card>
+          <CardContent className="p-6">
+            <p className="font-medium text-red-600">Analysis failed</p>
+            <p className="mt-1 text-gray-600">{analysis.error_message || 'Something went wrong.'}</p>
+          </CardContent>
+        </Card>
+      </PageShell>
+    );
+  }
+
+  const currentChord = chordIdx >= 0 ? timeline[chordIdx] : null;
+  const nextChordSpan = timeline
+    .slice(chordIdx >= 0 ? chordIdx + 1 : 0)
+    .find(([, , name]) => !isNoChord(name));
+
+  return (
+    <PageShell title={analysis.title}>
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        {analysis.key && <Badge className="text-sm">Key: {analysis.key}</Badge>}
+        {analysis.bpm && <Badge className="text-sm">{analysis.bpm} BPM</Badge>}
+        {analysis.time_signature && <Badge className="text-sm">{analysis.time_signature}</Badge>}
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Player */}
+        <Card>
+          <CardContent className="p-4">
+            {analysis.youtube_id ? (
+              <YouTubePlayer ref={youtubeRef} videoId={analysis.youtube_id} />
+            ) : audioUrl ? (
+              <div className="flex h-full min-h-[120px] flex-col justify-center gap-3">
+                <div className="flex items-center gap-2 text-gray-600">
+                  <Music className="h-5 w-5" />
+                  <span className="truncate">{analysis.title}</span>
+                </div>
+                <audio ref={audioRef} src={audioUrl} controls className="w-full" />
+              </div>
+            ) : (
+              <div className="flex min-h-[120px] items-center justify-center text-gray-500">
+                Loading audio...
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Now playing */}
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
+            <div className="text-sm uppercase tracking-wide text-gray-500">Current chord</div>
+            <div className="text-6xl font-bold tabular-nums">
+              {currentChord ? formatChordName(currentChord[2]) : '—'}
+            </div>
+            {nextChordSpan && (
+              <div className="text-gray-500">
+                Next: <span className="font-semibold text-gray-800">{formatChordName(nextChordSpan[2])}</span>
+              </div>
+            )}
+            {beats.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                {Array.from({ length: beatsPerBar }, (_, i) => i + 1).map((pos) => (
+                  <span
+                    key={pos}
+                    className={cn(
+                      "h-3 w-3 rounded-full transition-all duration-100",
+                      pos === currentBeatPos
+                        ? pos === 1
+                          ? "scale-125 bg-primary"
+                          : "scale-110 bg-primary/70"
+                        : "bg-gray-200",
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Chord timeline */}
+      {timeline.length > 0 ? (
+        <Card className="mt-6">
+          <CardContent className="p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="font-semibold">Chord timeline</h2>
+              <span className="text-sm text-gray-500">Click a chord to jump there</span>
+            </div>
+            <div ref={stripRef} className="overflow-x-auto pb-2">
+              <div className="flex gap-1">
+                {timeline.map(([start, end, name], idx) => (
+                  <button
+                    key={`${start}-${idx}`}
+                    data-chord-idx={idx}
+                    onClick={() => seekTo(start)}
+                    style={{ minWidth: Math.max(56, (end - start) * PIXELS_PER_SECOND) }}
+                    className={cn(
+                      "flex shrink-0 flex-col items-center justify-center rounded-md border px-2 py-3 transition-colors",
+                      idx === chordIdx
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : isNoChord(name)
+                          ? "border-dashed bg-gray-50 text-gray-400 hover:bg-gray-100"
+                          : "bg-white hover:bg-gray-50",
+                    )}
+                  >
+                    <span className="text-lg font-semibold">{formatChordName(name)}</span>
+                    <span className={cn("text-xs", idx === chordIdx ? "text-primary-foreground/80" : "text-gray-400")}>
+                      {formatTime(start)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="mt-6">
+          <CardContent className="p-6 text-gray-600">
+            <p>
+              This song was analyzed before synced chords were available, so only the chord list is
+              shown. Re-analyze the song to get the beat-synced timeline.
+            </p>
+            {analysis.chords && analysis.chords.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {analysis.chords.map((chord) => (
+                  <Badge key={chord} variant="outline">{formatChordName(chord)}</Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Chords used */}
+      {timeline.length > 0 && analysis.chords && analysis.chords.length > 0 && (
+        <Card className="mt-6">
+          <CardContent className="p-4">
+            <h2 className="mb-3 font-semibold">Chords in this song</h2>
+            <div className="flex flex-wrap gap-2">
+              {analysis.chords.map((chord) => (
+                <Badge key={chord} variant="outline" className="text-sm">
+                  {formatChordName(chord)}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </PageShell>
+  );
+};
+
+const PageShell = ({ title, children }: { title?: string; children: React.ReactNode }) => (
+  <div className="min-h-screen bg-gray-50">
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-6 flex items-center gap-4">
+        <Link to="/dashboard">
+          <Button variant="ghost" size="sm" className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Dashboard
+          </Button>
+        </Link>
+        {title && <h1 className="truncate text-xl font-bold">{title}</h1>}
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+export default AnalysisDetail;

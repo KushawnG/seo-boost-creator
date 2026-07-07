@@ -28,8 +28,8 @@ const Index = () => {
             </Card>
             <Card className="p-6">
               <Clock className="h-12 w-12 text-primary mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Advanced Stem Splitting</h3>
-              <p className="text-gray-600">Isolate individual instruments and vocals for detailed analysis</p>
+              <h3 className="text-xl font-semibold mb-2">Beat-Synced Chords</h3>
+              <p className="text-gray-600">Follow the chord changes in real time as the song plays</p>
             </Card>
             <Card className="p-6">
               <Lock className="h-12 w-12 text-primary mb-4" />
@@ -134,10 +134,6 @@ const Index = () => {
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
                   <span>BPM Detection</span>
-                </li>
-                <li className="flex items-center">
-                  <Lock className="h-5 w-5 text-primary mr-2" />
-                  <span>Stem Splitter</span>
                 </li>
                 <li className="flex items-center text-gray-500">
                   <span>Cancel or change plan anytime</span>
