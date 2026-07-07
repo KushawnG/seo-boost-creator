@@ -162,14 +162,14 @@ async function getAudioSource(
   if (analysis.url) {
     const youtubeId = extractYouTubeId(analysis.url);
     if (youtubeId) {
-      const { blob, title, duration } = await fetchYouTubeAudio(youtubeId);
+      const { blob, title, duration, extension } = await fetchYouTubeAudio(youtubeId);
 
       // Keep the extracted audio so the analysis survives the video going
       // away and users can replay their history
-      const storagePath = `${analysis.user_id}/youtube-${youtubeId}.m4a`;
+      const storagePath = `${analysis.user_id}/youtube-${youtubeId}.${extension}`;
       const { error: uploadError } = await supabase.storage
         .from('audio_files')
-        .upload(storagePath, blob, { contentType: 'audio/mp4', upsert: true });
+        .upload(storagePath, blob, { contentType: blob.type, upsert: true });
       if (uploadError) {
         console.warn('Could not store YouTube audio:', uploadError.message);
       } else {
@@ -179,7 +179,7 @@ async function getAudioSource(
           .eq('id', analysis.id);
       }
 
-      return { blob, filename: 'audio.m4a', title, duration, youtubeId };
+      return { blob, filename: `audio.${extension}`, title, duration, youtubeId };
     }
 
     // Non-YouTube URLs must point directly at an audio file
