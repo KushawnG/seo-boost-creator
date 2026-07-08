@@ -64,11 +64,12 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id);
 
     const origin = req.headers.get('origin') ?? 'https://chordfinderai.com';
+    const planName = priceId === Deno.env.get('STRIPE_PRICE_PREMIUM') ? 'premium' : 'pro';
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${origin}/dashboard?checkout=success`,
+      success_url: `${origin}/dashboard?checkout=success&plan=${planName}`,
       cancel_url: `${origin}/dashboard?checkout=canceled`,
       subscription_data: {
         metadata: { supabaseUid: user.id },

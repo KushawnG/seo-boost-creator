@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
+import { trackMetaEvent } from "@/lib/meta-pixel";
 
 type Mode = "signin" | "signup" | "forgot" | "recovery";
 
@@ -81,6 +82,9 @@ const Auth = () => {
           options: { emailRedirectTo: `${window.location.origin}/dashboard` },
         });
         if (error) throw error;
+        if (data.user) {
+          trackMetaEvent("CompleteRegistration");
+        }
         if (data.user && !data.session) {
           setInfoMessage("Check your inbox — we sent you a link to confirm your account.");
         }

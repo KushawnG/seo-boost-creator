@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSubscription, useSubscriptionActions } from "@/hooks/use-subscription";
 import { planFor } from "@/lib/plans";
 import { paymentsLikelyBlocked, BLOCKER_HELP_MESSAGE } from "@/lib/payment-blockers";
+import { trackMetaEvent, PLAN_VALUES } from "@/lib/meta-pixel";
 import { Music, Zap, Clock } from "lucide-react";
 import { PlanCard } from "../membership/PlanCard";
 import { CreditsProgress } from "../membership/CreditsProgress";
@@ -77,6 +78,13 @@ export const PlanBillingTab = () => {
   const handleUpgrade = async (priceId: string) => {
     try {
       setIsLoading(true);
+
+      const planKey = priceId === PLANS.PREMIUM.priceId ? 'premium' : 'pro';
+      trackMetaEvent('InitiateCheckout', {
+        value: PLAN_VALUES[planKey],
+        currency: 'USD',
+        content_name: planKey,
+      });
 
       // Warn users whose ad blocker is likely to break the Stripe page
       const [blocked, sessionResult] = await Promise.all([

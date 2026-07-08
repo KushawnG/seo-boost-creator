@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { BLOCKER_HELP_MESSAGE } from "@/lib/payment-blockers";
+import { trackMetaEvent, PLAN_VALUES } from "@/lib/meta-pixel";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HomeTab } from "@/components/dashboard/tabs/HomeTab";
@@ -46,6 +47,12 @@ const Dashboard = () => {
     if (!checkout) return;
 
     if (checkout === "success") {
+      const plan = searchParams.get("plan") ?? "pro";
+      trackMetaEvent("Purchase", {
+        value: PLAN_VALUES[plan] ?? PLAN_VALUES.pro,
+        currency: "USD",
+        content_name: plan,
+      });
       setActiveTab("billing");
       queryClient.invalidateQueries({ queryKey: ['subscription'] });
       queryClient.invalidateQueries({ queryKey: ['billing-info'] });
@@ -60,8 +67,9 @@ const Dashboard = () => {
         duration: 12000,
       });
     }
-    // remove the query param so refreshes don't re-toast
+    // remove the query params so refreshes don't re-toast or re-track
     searchParams.delete("checkout");
+    searchParams.delete("plan");
     setSearchParams(searchParams, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
