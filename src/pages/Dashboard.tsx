@@ -6,6 +6,9 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { planFor } from "@/lib/plans";
 import { Home, List, CreditCard, LogOut, Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { BLOCKER_HELP_MESSAGE } from "@/lib/payment-blockers";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HomeTab } from "@/components/dashboard/tabs/HomeTab";
@@ -34,6 +37,34 @@ const Dashboard = () => {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));
   }, []);
+
+  // Handle returning from Stripe checkout
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const checkout = searchParams.get("checkout");
+    if (!checkout) return;
+
+    if (checkout === "success") {
+      setActiveTab("billing");
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      queryClient.invalidateQueries({ queryKey: ['billing-info'] });
+      toast({
+        title: "Welcome aboard! 🎉",
+        description: "Your subscription is active. Your new credits may take a few seconds to appear.",
+      });
+    } else if (checkout === "canceled") {
+      toast({
+        title: "Checkout not completed",
+        description: `No charge was made. If the payment page failed to load: ${BLOCKER_HELP_MESSAGE}`,
+        duration: 12000,
+      });
+    }
+    // remove the query param so refreshes don't re-toast
+    searchParams.delete("checkout");
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

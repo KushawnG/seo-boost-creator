@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSubscription, useSubscriptionActions } from "@/hooks/use-subscription";
 import { planFor } from "@/lib/plans";
+import { paymentsLikelyBlocked, BLOCKER_HELP_MESSAGE } from "@/lib/payment-blockers";
 import { Music, Zap, Clock } from "lucide-react";
 import { PlanCard } from "../membership/PlanCard";
 import { CreditsProgress } from "../membership/CreditsProgress";
@@ -76,10 +77,23 @@ export const PlanBillingTab = () => {
   const handleUpgrade = async (priceId: string) => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: { priceId }
-      });
 
+      // Warn users whose ad blocker is likely to break the Stripe page
+      const [blocked, sessionResult] = await Promise.all([
+        paymentsLikelyBlocked(),
+        supabase.functions.invoke('create-checkout-session', { body: { priceId } }),
+      ]);
+      if (blocked) {
+        toast({
+          title: "Ad blocker detected",
+          description: BLOCKER_HELP_MESSAGE,
+          duration: 10000,
+        });
+        // give the user a moment to read it before leaving the page
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+      }
+
+      const { data, error } = sessionResult;
       if (error) throw error;
       if (data?.url) window.location.href = data.url;
     } catch (error) {
