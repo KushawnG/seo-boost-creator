@@ -34,8 +34,9 @@ const PLANS = {
     priceId: "price_1Tr1OBBN1naKzz61yFltF0O2",
     features: [
       { icon: Music, text: "15 analyses/month" },
+      { icon: Zap, text: "Guitar & piano diagrams" },
       { icon: Clock, text: "Songs up to 5 min" },
-      { icon: Zap, text: "Unlimited history" }
+      { icon: Music, text: "Unlimited history" }
     ],
     footnote: "Cancel anytime"
   },
@@ -45,8 +46,9 @@ const PLANS = {
     priceId: "price_1Tr1OCBN1naKzz619VkWw4X4",
     features: [
       { icon: Music, text: "40 analyses/month" },
+      { icon: Zap, text: "Guitar & piano diagrams" },
       { icon: Clock, text: "Songs up to 5 min" },
-      { icon: Zap, text: "Unlimited history" }
+      { icon: Music, text: "Unlimited history" }
     ],
     footnote: "Cancel anytime"
   }

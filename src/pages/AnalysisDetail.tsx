@@ -6,8 +6,10 @@ import type { Database } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Loader2, Music } from "lucide-react";
+import { ArrowLeft, Guitar, Loader2, Lock, Music, Piano } from "lucide-react";
 import { YouTubePlayer, type PlayerHandle } from "@/components/analysis/YouTubePlayer";
+import { GuitarChordDiagram } from "@/components/analysis/GuitarChordDiagram";
+import { PianoChordDiagram } from "@/components/analysis/PianoChordDiagram";
 import {
   type Beat,
   type ChordSpan,
@@ -16,6 +18,9 @@ import {
   formatChordName,
   isNoChord,
 } from "@/lib/chords";
+import { type Instrument, hasDiagram } from "@/lib/chord-shapes";
+import { useSubscription } from "@/hooks/use-subscription";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
@@ -24,6 +29,26 @@ const PIXELS_PER_SECOND = 14;
 
 const AnalysisDetail = () => {
   const { id } = useParams<{ id: string }>();
+  const { toast } = useToast();
+
+  const { data: subscription } = useSubscription();
+  const diagramsUnlocked =
+    subscription?.plan_type === 'pro' || subscription?.plan_type === 'premium';
+
+  const [instrument, setInstrument] = useState<Instrument>(
+    () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',
+  );
+  const selectInstrument = (next: Instrument) => {
+    if (next !== 'off' && !diagramsUnlocked) {
+      toast({
+        title: "Chord diagrams are a Pro feature",
+        description: "Upgrade to Pro or Premium to see guitar fingerings and piano keys synced with the song.",
+      });
+      return;
+    }
+    setInstrument(next);
+    localStorage.setItem('chord-instrument', next);
+  };
 
   const { data: analysis, isLoading } = useQuery({
     queryKey: ['analysis', id],
@@ -185,10 +210,40 @@ const AnalysisDetail = () => {
         {/* Now playing */}
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
-            <div className="text-sm uppercase tracking-wide text-muted-foreground">Current chord</div>
+            <div className="flex w-full items-center justify-between">
+              <div className="text-sm uppercase tracking-wide text-muted-foreground">Current chord</div>
+              <div className="flex items-center gap-1">
+                {([
+                  { id: 'off' as const, icon: Music, label: 'Chord names only' },
+                  { id: 'guitar' as const, icon: Guitar, label: 'Guitar diagrams' },
+                  { id: 'piano' as const, icon: Piano, label: 'Piano keys' },
+                ]).map(({ id: mode, icon: Icon, label }) => (
+                  <Button
+                    key={mode}
+                    variant={instrument === mode ? "secondary" : "ghost"}
+                    size="icon"
+                    className="relative h-8 w-8"
+                    title={mode !== 'off' && !diagramsUnlocked ? `${label} (Pro feature)` : label}
+                    onClick={() => selectInstrument(mode)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {mode !== 'off' && !diagramsUnlocked && (
+                      <Lock className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 text-muted-foreground" />
+                    )}
+                  </Button>
+                ))}
+              </div>
+            </div>
             <div className="text-6xl font-bold tabular-nums">
               {currentChord ? formatChordName(currentChord[2]) : '—'}
             </div>
+            {instrument !== 'off' && diagramsUnlocked && currentChord && hasDiagram(currentChord[2]) && (
+              instrument === 'guitar' ? (
+                <GuitarChordDiagram chord={currentChord[2]} className="h-28 w-auto" />
+              ) : (
+                <PianoChordDiagram chord={currentChord[2]} className="h-16 w-auto" />
+              )
+            )}
             {nextChordSpan && (
               <div className="text-muted-foreground">
                 Next: <span className="font-semibold text-foreground">{formatChordName(nextChordSpan[2])}</span>
