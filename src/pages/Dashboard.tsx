@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useSubscription } from "@/hooks/use-subscription";
 import { planFor } from "@/lib/plans";
 import { Home, List, User, CreditCard, Settings, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
@@ -19,21 +19,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const { data: subscription } = useQuery({
-    queryKey: ['subscription'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('plan_type, credits_remaining, credits_total')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    }
-  });
-
+  const { data: subscription } = useSubscription();
   const plan = planFor(subscription?.plan_type);
   const creditsRemaining = subscription?.credits_remaining ?? plan.monthlyCredits;
 

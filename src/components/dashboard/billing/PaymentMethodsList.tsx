@@ -1,65 +1,73 @@
 import { Button } from "@/components/ui/button";
-import { CreditCard, Trash2 } from "lucide-react";
-import type { Database } from "@/integrations/supabase/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
 
-type PaymentMethod = Database['public']['Tables']['payment_methods']['Row']
+export interface PaymentMethodInfo {
+  id: string;
+  brand: string;
+  last4: string;
+  expMonth: number;
+  expYear: number;
+  isDefault: boolean;
+}
 
 interface PaymentMethodsListProps {
-  paymentMethods: PaymentMethod[] | undefined;
-  onRemovePaymentMethod: (paymentMethodId: string) => Promise<void>;
+  paymentMethods: PaymentMethodInfo[] | undefined;
+  isLoading: boolean;
+  canManage: boolean;
+  onManage: () => void;
+  isOpeningPortal: boolean;
 }
 
 export const PaymentMethodsList = ({
   paymentMethods,
-  onRemovePaymentMethod,
+  isLoading,
+  canManage,
+  onManage,
+  isOpeningPortal,
 }: PaymentMethodsListProps) => {
   return (
     <div>
       <h3 className="text-lg font-semibold mb-4">Payment Methods</h3>
-      {paymentMethods?.map((method) => (
-        <div key={method.id} className="flex items-center gap-4 p-4 border rounded-lg mb-4">
-          <CreditCard className="h-6 w-6" />
-          <div>
-            <p className="font-medium">•••• {method.card_last4}</p>
-            <p className="text-sm text-gray-600">
-              Expires {method.card_exp_month}/{method.card_exp_year}
-            </p>
-          </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="ml-auto">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove Payment Method</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to remove this payment method? This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onRemovePaymentMethod(method.id)}>
-                  Remove
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-gray-500 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading payment methods...
         </div>
-      ))}
-      <Button className="w-full mt-4">Add Payment Method</Button>
+      ) : paymentMethods && paymentMethods.length > 0 ? (
+        paymentMethods.map((method) => (
+          <div key={method.id} className="flex items-center gap-4 p-4 border rounded-lg mb-3">
+            <CreditCard className="h-6 w-6 text-gray-500" />
+            <div>
+              <p className="font-medium">
+                <span className="capitalize">{method.brand}</span> •••• {method.last4}
+              </p>
+              <p className="text-sm text-gray-600">
+                Expires {String(method.expMonth).padStart(2, '0')}/{method.expYear}
+              </p>
+            </div>
+            {method.isDefault && (
+              <Badge variant="outline" className="ml-auto">Default</Badge>
+            )}
+          </div>
+        ))
+      ) : (
+        <p className="text-sm text-gray-500 mb-3">
+          No payment methods on file. One is added automatically when you subscribe to a paid plan.
+        </p>
+      )}
+
+      {canManage && (
+        <Button
+          variant="outline"
+          className="mt-2 gap-2"
+          onClick={onManage}
+          disabled={isOpeningPortal}
+        >
+          {isOpeningPortal ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+          Manage payment methods
+        </Button>
+      )}
     </div>
   );
 };

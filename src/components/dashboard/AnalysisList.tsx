@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { planFor } from "@/lib/plans";
+import { useSubscription } from "@/hooks/use-subscription";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -26,21 +27,7 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: subscription } = useQuery({
-    queryKey: ['subscription'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('plan_type, credits_remaining, credits_total')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    }
-  });
-
+  const { data: subscription } = useSubscription();
   const historyLimit = planFor(subscription?.plan_type).historyLimit;
 
   const { data: analyses, isLoading } = useQuery({
