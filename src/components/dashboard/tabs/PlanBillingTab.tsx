@@ -31,7 +31,7 @@ const PLANS = {
   PRO: {
     title: "Pro Plan",
     price: "$12/mo",
-    priceId: "price_1TqmnqKtE1i0bFDaAWAThaFA",
+    priceId: "price_1Tr1OBBN1naKzz61yFltF0O2",
     features: [
       { icon: Music, text: "15 analyses/month" },
       { icon: Clock, text: "Songs up to 5 min" },
@@ -42,7 +42,7 @@ const PLANS = {
   PREMIUM: {
     title: "Premium Plan",
     price: "$29/mo",
-    priceId: "price_1TqmnrKtE1i0bFDaQj84iDkT",
+    priceId: "price_1Tr1OCBN1naKzz619VkWw4X4",
     features: [
       { icon: Music, text: "40 analyses/month" },
       { icon: Clock, text: "Songs up to 5 min" },
