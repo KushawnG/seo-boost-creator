@@ -54,6 +54,6 @@
     @apply border-border;
   }
   body {
-    @apply bg-gradient-to-b from-white to-blue-50 min-h-screen;
+    @apply min-h-screen bg-gradient-to-b from-white to-blue-50 text-foreground dark:from-slate-950 dark:to-slate-900;
   }
 }

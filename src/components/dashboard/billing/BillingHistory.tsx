@@ -26,7 +26,7 @@ export const BillingHistory = ({ invoices, isLoading }: BillingHistoryProps) => 
       <h3 className="text-lg font-semibold mb-4">Billing History</h3>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-gray-500 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading invoices...
         </div>
       ) : invoices && invoices.length > 0 ? (
@@ -35,7 +35,7 @@ export const BillingHistory = ({ invoices, isLoading }: BillingHistoryProps) => 
             <div key={invoice.id} className="flex items-center justify-between gap-4 p-4 border rounded-lg">
               <div className="min-w-0">
                 <p className="font-medium truncate">{invoice.description}</p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   {format(new Date(invoice.date), 'MMMM d, yyyy')}
                 </p>
               </div>
@@ -49,7 +49,7 @@ export const BillingHistory = ({ invoices, isLoading }: BillingHistoryProps) => 
                     href={invoice.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-gray-500 hover:text-gray-900"
+                    className="text-muted-foreground hover:text-foreground"
                     title="View invoice"
                   >
                     <ExternalLink className="h-4 w-4" />
@@ -60,7 +60,7 @@ export const BillingHistory = ({ invoices, isLoading }: BillingHistoryProps) => 
           ))}
         </div>
       ) : (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-muted-foreground">
           No invoices yet. Your receipts will appear here after your first payment.
         </p>
       )}

@@ -28,11 +28,11 @@ export const CreditsProgress = ({
       <h3 className="text-lg font-semibold mb-2">Credits</h3>
       <div className="space-y-2">
         <Progress value={creditsPercent} />
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           {subscription?.credits_remaining || 0} analyses remaining out of {creditsTotal}
         </p>
         {subscription?.current_period_end && (
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             Credits renew on {formatRenewalDate(subscription.current_period_end)}
           </p>
         )}

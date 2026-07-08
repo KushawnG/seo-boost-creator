@@ -96,7 +96,7 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   return (
     <div className="space-y-3">
     {showAll && historyLimit && analyses.length >= historyLimit && (
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted-foreground">
         The Free plan keeps your {historyLimit} most recent analyses. Upgrade to Pro or Premium for unlimited history.
       </p>
     )}

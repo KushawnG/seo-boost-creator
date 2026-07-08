@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { useSubscription, useSubscriptionActions } from "@/hooks/use-subscription";
+import { planFor } from "@/lib/plans";
 import { Music, Zap, Clock } from "lucide-react";
 import { PlanCard } from "../membership/PlanCard";
 import { CreditsProgress } from "../membership/CreditsProgress";
 import { CurrentPlan } from "../membership/CurrentPlan";
+import { PaymentMethodsList, type PaymentMethodInfo } from "../billing/PaymentMethodsList";
+import { BillingHistory, type InvoiceInfo } from "../billing/BillingHistory";
 
 const PLANS = {
   FREE: {
@@ -45,12 +50,28 @@ const PLANS = {
   }
 };
 
-export const MembershipTab = () => {
+interface BillingInfo {
+  hasCustomer: boolean;
+  paymentMethods: PaymentMethodInfo[];
+  invoices: InvoiceInfo[];
+}
+
+export const PlanBillingTab = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
 
   const { data: subscription } = useSubscription();
   const { cancelSubscription, resumeSubscription, isWorking } = useSubscriptionActions();
+
+  const { data: billing, isLoading: billingLoading } = useQuery({
+    queryKey: ['billing-info'],
+    queryFn: async (): Promise<BillingInfo> => {
+      const { data, error } = await supabase.functions.invoke('billing-info', { body: {} });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      return data as BillingInfo;
+    },
+  });
 
   const handleUpgrade = async (priceId: string) => {
     try {
@@ -65,7 +86,7 @@ export const MembershipTab = () => {
       console.error('Error creating checkout session:', error);
       toast({
         title: "Error",
-        description: "Failed to initiate upgrade. Please try again.",
+        description: "Failed to start the upgrade. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -81,20 +102,41 @@ export const MembershipTab = () => {
     await cancelSubscription();
   };
 
+  const openPortal = async () => {
+    try {
+      setIsOpeningPortal(true);
+      const { data, error } = await supabase.functions.invoke('billing-portal', { body: {} });
+      if (error || data?.error || !data?.url) {
+        throw new Error(data?.error || error?.message || 'Could not open billing portal');
+      }
+      window.location.href = data.url;
+    } catch (error) {
+      console.error('Billing portal error:', error);
+      toast({
+        title: "Error",
+        description: "Could not open the payment settings page. Please try again.",
+        variant: "destructive",
+      });
+      setIsOpeningPortal(false);
+    }
+  };
+
   const creditsUsed = subscription ? (subscription.credits_total - subscription.credits_remaining) : 0;
   const creditsTotal = subscription?.credits_total || 3;
   const creditsPercent = (creditsUsed / creditsTotal) * 100;
   const currentPlanType = subscription?.plan_type || 'free';
   const isPaidPlan = currentPlanType === 'pro' || currentPlanType === 'premium';
+  const plan = planFor(currentPlanType);
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Membership</h2>
-      
       <Card>
         <CardContent className="p-6">
           <div className="space-y-6">
-            <CurrentPlan subscription={subscription ?? undefined} />
+            <div className="flex items-start justify-between gap-4">
+              <CurrentPlan subscription={subscription ?? undefined} />
+              <span className="shrink-0 text-lg font-semibold">{plan.price}</span>
+            </div>
 
             {isPaidPlan && subscription?.stripe_subscription_id && (
               subscription.cancel_at_period_end ? (
@@ -108,7 +150,7 @@ export const MembershipTab = () => {
               ) : (
                 <Button
                   variant="outline"
-                  className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                  className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950"
                   onClick={handleCancel}
                   disabled={isWorking}
                 >
@@ -124,25 +166,39 @@ export const MembershipTab = () => {
             />
 
             <div>
-              <h3 className="text-lg font-semibold mb-4">Available Plans</h3>
+              <h3 className="mb-4 text-lg font-semibold">Available Plans</h3>
               <div className="grid gap-4 sm:grid-cols-3">
-                {Object.values(PLANS).map((plan) => {
-                  const isCurrentPlan = currentPlanType === plan.title.toLowerCase().split(' ')[0];
-                  const showDowngrade = isPaidPlan && plan.title === "Free Plan";
-                  
+                {Object.values(PLANS).map((planOption) => {
+                  const isCurrentPlan = currentPlanType === planOption.title.toLowerCase().split(' ')[0];
+                  const showDowngrade = isPaidPlan && planOption.title === "Free Plan";
+
                   return (
                     <PlanCard
-                      key={plan.priceId}
-                      {...plan}
+                      key={planOption.priceId}
+                      {...planOption}
                       isCurrentPlan={isCurrentPlan}
                       isLoading={isLoading || isWorking}
                       onUpgrade={showDowngrade ? handleCancel : handleUpgrade}
-                      buttonText={showDowngrade ? "Downgrade to Free" : isCurrentPlan ? "Current Plan" : `Upgrade to ${plan.title}`}
+                      buttonText={showDowngrade ? "Downgrade to Free" : isCurrentPlan ? "Current Plan" : `Upgrade to ${planOption.title}`}
                     />
                   );
                 })}
               </div>
             </div>
+
+            <Separator />
+
+            <PaymentMethodsList
+              paymentMethods={billing?.paymentMethods}
+              isLoading={billingLoading}
+              canManage={!!billing?.hasCustomer}
+              onManage={openPortal}
+              isOpeningPortal={isOpeningPortal}
+            />
+
+            <Separator />
+
+            <BillingHistory invoices={billing?.invoices} isLoading={billingLoading} />
           </div>
         </CardContent>
       </Card>

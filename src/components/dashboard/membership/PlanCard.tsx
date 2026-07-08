@@ -38,14 +38,14 @@ export const PlanCard = ({
       <CardContent className="p-4">
         <h4 className="font-semibold">{title}</h4>
         <p className="text-2xl font-bold my-2">{price}</p>
-        <ul className="text-sm text-gray-600 space-y-2 mb-4">
+        <ul className="text-sm text-muted-foreground space-y-2 mb-4">
           {features.map((feature, index) => (
             <li key={index} className="flex items-center">
               <feature.icon className="h-4 w-4 text-primary mr-2" />
               {feature.text}
             </li>
           ))}
-          <li className="text-sm text-gray-500">
+          <li className="text-sm text-muted-foreground">
             {footnote}
           </li>
         </ul>

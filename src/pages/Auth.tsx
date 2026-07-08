@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 type Mode = "signin" | "signup" | "forgot" | "recovery";
 
@@ -122,17 +123,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-muted/40 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <Link to="/" className="inline-block">
-            <img
-              src="/Chord-Finder-Ai-Logo-Icon-Only.png"
-              alt="Chord Finder AI"
-              className="h-12 w-12 mx-auto"
-            />
+            <BrandLogo className="h-12 w-12 mx-auto" />
           </Link>
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">{heading}</h2>
+          <h2 className="mt-6 text-3xl font-extrabold text-foreground">{heading}</h2>
         </div>
 
         {errorMessage && (
@@ -188,12 +185,12 @@ const Auth = () => {
           </Button>
         </form>
 
-        <div className="text-center text-sm text-gray-600 space-y-2">
+        <div className="text-center text-sm text-muted-foreground space-y-2">
           {mode === "signin" && (
             <>
               <p>
                 Don't have an account?{" "}
-                <button onClick={() => switchMode("signup")} className="font-medium text-gray-900 underline">
+                <button onClick={() => switchMode("signup")} className="font-medium text-foreground underline">
                   Sign up
                 </button>
               </p>
@@ -207,7 +204,7 @@ const Auth = () => {
           {mode === "signup" && (
             <p>
               Already have an account?{" "}
-              <button onClick={() => switchMode("signin")} className="font-medium text-gray-900 underline">
+              <button onClick={() => switchMode("signin")} className="font-medium text-foreground underline">
                 Sign in
               </button>
             </p>

@@ -31,18 +31,18 @@ export const PaymentMethodsList = ({
       <h3 className="text-lg font-semibold mb-4">Payment Methods</h3>
 
       {isLoading ? (
-        <div className="flex items-center gap-2 text-gray-500 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading payment methods...
         </div>
       ) : paymentMethods && paymentMethods.length > 0 ? (
         paymentMethods.map((method) => (
           <div key={method.id} className="flex items-center gap-4 p-4 border rounded-lg mb-3">
-            <CreditCard className="h-6 w-6 text-gray-500" />
+            <CreditCard className="h-6 w-6 text-muted-foreground" />
             <div>
               <p className="font-medium">
                 <span className="capitalize">{method.brand}</span> •••• {method.last4}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 Expires {String(method.expMonth).padStart(2, '0')}/{method.expYear}
               </p>
             </div>
@@ -52,7 +52,7 @@ export const PaymentMethodsList = ({
           </div>
         ))
       ) : (
-        <p className="text-sm text-gray-500 mb-3">
+        <p className="text-sm text-muted-foreground mb-3">
           No payment methods on file. One is added automatically when you subscribe to a paid plan.
         </p>
       )}

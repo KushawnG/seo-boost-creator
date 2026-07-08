@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Menu, X } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const Navigation = () => {
   const navigate = useNavigate();
@@ -65,21 +67,20 @@ export const Navigation = () => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-b z-50">
+    <nav className="fixed top-0 left-0 right-0 bg-background/80 backdrop-blur-sm border-b z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex-1 flex items-center">
             <Link to="/" onClick={scrollToTop} className="flex items-center space-x-2">
-              <img 
-                src="/Chord-Finder-Ai-Logo-Icon-Only.png" 
-                alt="Chord Finder AI" 
-                className="h-8 w-8"
-              />
+              <BrandLogo className="h-8 w-8" />
               <span className="text-xl font-bold">Chord Finder AI</span>
             </Link>
           </div>
           
           {/* Mobile menu button */}
+          <div className="md:hidden">
+            <ThemeToggle />
+          </div>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="md:hidden p-2"
@@ -93,15 +94,16 @@ export const Navigation = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex flex-1 justify-center space-x-4">
-            <a href="#about" className="text-gray-600 hover:text-gray-900">
+            <a href="#about" className="text-muted-foreground hover:text-foreground">
               About
             </a>
-            <a href="#pricing" className="text-gray-600 hover:text-gray-900">
+            <a href="#pricing" className="text-muted-foreground hover:text-foreground">
               Pricing
             </a>
           </div>
           
           <div className="hidden md:flex flex-1 justify-end items-center space-x-4">
+            <ThemeToggle />
             {isAuthenticated ? (
               <>
                 <Link to="/dashboard">
@@ -128,10 +130,10 @@ export const Navigation = () => {
         {isMobileMenuOpen && (
           <div className="md:hidden py-4 border-t">
             <div className="flex flex-col space-y-4">
-              <a href="#about" className="text-gray-600 hover:text-gray-900 px-2">
+              <a href="#about" className="text-muted-foreground hover:text-foreground px-2">
                 About
               </a>
-              <a href="#pricing" className="text-gray-600 hover:text-gray-900 px-2">
+              <a href="#pricing" className="text-muted-foreground hover:text-foreground px-2">
                 Pricing
               </a>
               {isAuthenticated ? (

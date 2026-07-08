@@ -20,13 +20,13 @@ export const CurrentPlan = ({ subscription }: CurrentPlanProps) => {
         {subscription?.plan_type || 'Free'} Plan
       </p>
       {cancelScheduled && renewalDate ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
           Your subscription is canceled and will end on <span className="font-semibold">{renewalDate}</span>.
           You keep your current plan until then, after which you'll move to the Free plan.
           No further charges will be made.
         </div>
       ) : renewalDate ? (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Renews on {renewalDate}
         </p>
       ) : null}

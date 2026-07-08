@@ -320,7 +320,7 @@ export const AnalysisForm = () => {
 
       <div className="flex items-center">
         <div className="border-t flex-grow"></div>
-        <span className="px-4 text-sm text-gray-500">OR</span>
+        <span className="px-4 text-sm text-muted-foreground">OR</span>
         <div className="border-t flex-grow"></div>
       </div>
 
@@ -345,7 +345,7 @@ export const AnalysisForm = () => {
       </div>
 
       {isSubmitting && activeAnalysisId && (
-        <div className="flex items-center gap-3 rounded-lg border bg-gray-50 p-4 text-sm text-gray-600">
+        <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           Analyzing your song — detecting beats, key and chords. This usually takes about a minute.
         </div>

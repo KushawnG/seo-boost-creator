@@ -55,14 +55,14 @@ export const RecentAnalyses = () => {
               </div>
 
               {analysis.status === 'pending' && (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Analyzing beats, key and chords...
                 </div>
               )}
 
               {analysis.status === 'failed' && (
-                <p className="text-sm text-red-600">
+                <p className="text-sm text-red-600 dark:text-red-400">
                   {analysis.error_message || 'Analysis failed.'}
                 </p>
               )}
@@ -70,16 +70,16 @@ export const RecentAnalyses = () => {
               {analysis.status === 'completed' && (
                 <div className="space-y-2">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Key:</span>
+                    <span className="text-muted-foreground">Key:</span>
                     <span className="font-medium">{analysis.key || 'N/A'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">BPM:</span>
+                    <span className="text-muted-foreground">BPM:</span>
                     <span className="font-medium">{analysis.bpm || 'N/A'}</span>
                   </div>
                   {analysis.chords && (
                     <div>
-                      <span className="text-gray-600">Chords:</span>
+                      <span className="text-muted-foreground">Chords:</span>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {analysis.chords.map((chord, index) => (
                           <Badge key={index} variant="outline">{formatChordName(chord)}</Badge>

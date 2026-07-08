@@ -106,7 +106,7 @@ const AnalysisDetail = () => {
   if (isLoading) {
     return (
       <PageShell>
-        <div className="flex items-center gap-3 text-gray-600">
+        <div className="flex items-center gap-3 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" /> Loading analysis...
         </div>
       </PageShell>
@@ -116,7 +116,7 @@ const AnalysisDetail = () => {
   if (!analysis) {
     return (
       <PageShell>
-        <p className="text-gray-600">Analysis not found.</p>
+        <p className="text-muted-foreground">Analysis not found.</p>
       </PageShell>
     );
   }
@@ -125,7 +125,7 @@ const AnalysisDetail = () => {
     return (
       <PageShell title={analysis.title}>
         <Card>
-          <CardContent className="flex items-center gap-3 p-6 text-gray-600">
+          <CardContent className="flex items-center gap-3 p-6 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             Analyzing this song — detecting beats, key and chords. This page will update automatically.
           </CardContent>
@@ -139,8 +139,8 @@ const AnalysisDetail = () => {
       <PageShell title={analysis.title}>
         <Card>
           <CardContent className="p-6">
-            <p className="font-medium text-red-600">Analysis failed</p>
-            <p className="mt-1 text-gray-600">{analysis.error_message || 'Something went wrong.'}</p>
+            <p className="font-medium text-red-600 dark:text-red-400">Analysis failed</p>
+            <p className="mt-1 text-muted-foreground">{analysis.error_message || 'Something went wrong.'}</p>
           </CardContent>
         </Card>
       </PageShell>
@@ -168,14 +168,14 @@ const AnalysisDetail = () => {
               <YouTubePlayer ref={youtubeRef} videoId={analysis.youtube_id} />
             ) : audioUrl ? (
               <div className="flex h-full min-h-[120px] flex-col justify-center gap-3">
-                <div className="flex items-center gap-2 text-gray-600">
+                <div className="flex items-center gap-2 text-muted-foreground">
                   <Music className="h-5 w-5" />
                   <span className="truncate">{analysis.title}</span>
                 </div>
                 <audio ref={audioRef} src={audioUrl} controls className="w-full" />
               </div>
             ) : (
-              <div className="flex min-h-[120px] items-center justify-center text-gray-500">
+              <div className="flex min-h-[120px] items-center justify-center text-muted-foreground">
                 Loading audio...
               </div>
             )}
@@ -185,13 +185,13 @@ const AnalysisDetail = () => {
         {/* Now playing */}
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-4 p-6">
-            <div className="text-sm uppercase tracking-wide text-gray-500">Current chord</div>
+            <div className="text-sm uppercase tracking-wide text-muted-foreground">Current chord</div>
             <div className="text-6xl font-bold tabular-nums">
               {currentChord ? formatChordName(currentChord[2]) : '—'}
             </div>
             {nextChordSpan && (
-              <div className="text-gray-500">
-                Next: <span className="font-semibold text-gray-800">{formatChordName(nextChordSpan[2])}</span>
+              <div className="text-muted-foreground">
+                Next: <span className="font-semibold text-foreground">{formatChordName(nextChordSpan[2])}</span>
               </div>
             )}
             {beats.length > 0 && (
@@ -205,7 +205,7 @@ const AnalysisDetail = () => {
                         ? pos === 1
                           ? "scale-125 bg-primary"
                           : "scale-110 bg-primary/70"
-                        : "bg-gray-200",
+                        : "bg-muted",
                     )}
                   />
                 ))}
@@ -221,7 +221,7 @@ const AnalysisDetail = () => {
           <CardContent className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-semibold">Chord timeline</h2>
-              <span className="text-sm text-gray-500">Click a chord to jump there</span>
+              <span className="text-sm text-muted-foreground">Click a chord to jump there</span>
             </div>
             <div ref={stripRef} className="overflow-x-auto pb-2">
               <div className="flex gap-1">
@@ -237,12 +237,12 @@ const AnalysisDetail = () => {
                       idx === chordIdx
                         ? "border-primary bg-primary text-primary-foreground"
                         : isNoChord(name)
-                          ? "border-dashed bg-gray-50 text-gray-400 hover:bg-gray-100"
-                          : "bg-white hover:bg-gray-50",
+                          ? "border-dashed bg-muted/40 text-muted-foreground/60 hover:bg-accent"
+                          : "bg-background hover:bg-accent/50",
                     )}
                   >
                     <span className="text-lg font-semibold">{formatChordName(name)}</span>
-                    <span className={cn("text-xs", idx === chordIdx ? "text-primary-foreground/80" : "text-gray-400")}>
+                    <span className={cn("text-xs", idx === chordIdx ? "text-primary-foreground/80" : "text-muted-foreground/60")}>
                       {formatTime(start)}
                     </span>
                   </button>
@@ -253,7 +253,7 @@ const AnalysisDetail = () => {
         </Card>
       ) : (
         <Card className="mt-6">
-          <CardContent className="p-6 text-gray-600">
+          <CardContent className="p-6 text-muted-foreground">
             <p>
               This song was analyzed before synced chords were available, so only the chord list is
               shown. Re-analyze the song to get the beat-synced timeline.
@@ -289,7 +289,7 @@ const AnalysisDetail = () => {
 };
 
 const PageShell = ({ title, children }: { title?: string; children: React.ReactNode }) => (
-  <div className="min-h-screen bg-gray-50">
+  <div className="min-h-screen bg-muted/40">
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6 flex items-center gap-4">
         <Link to="/dashboard">

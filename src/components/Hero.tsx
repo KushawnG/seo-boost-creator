@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export const Hero = () => {
   const [url, setUrl] = useState("");
@@ -63,19 +64,15 @@ export const Hero = () => {
     <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
       <div className="space-y-6 max-w-3xl">
         <div className="flex justify-center mb-6 cursor-pointer" onClick={scrollToTop}>
-          <img
-            src="Chord-Finder-Ai-Logo-Icon-Only.png"
-            alt="Chord Finder AI"
-            className="h-16 w-16"
-          />
+          <BrandLogo className="h-16 w-16" />
         </div>
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight">
           Chord Finder AI
         </h1>
-        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
           Find the key, bpm and chords of any song.
         </p>
-        <p className="text-gray-500">
+        <p className="text-muted-foreground">
           Enter the YouTube URL or input the Audio File of the song to Analyze.
         </p>
         
@@ -90,7 +87,7 @@ export const Hero = () => {
           
           <div className="flex items-center justify-center">
             <div className="border-t flex-grow"></div>
-            <span className="px-4 text-gray-500">OR</span>
+            <span className="px-4 text-muted-foreground">OR</span>
             <div className="border-t flex-grow"></div>
           </div>
           

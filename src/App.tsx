@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SessionContextProvider } from '@supabase/auth-helpers-react';
@@ -61,6 +62,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => (
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
   <SessionContextProvider supabaseClient={supabase}>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -85,6 +87,7 @@ const App = () => (
       </TooltipProvider>
     </QueryClientProvider>
   </SessionContextProvider>
+  </ThemeProvider>
 );
 
 export default App;
