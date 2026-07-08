@@ -80,7 +80,7 @@ async function runJob<T>(
   const formData = new FormData();
   formData.append('file', audio, filename);
 
-  const response = await fetch(`${KLANGIO_API_BASE_URL}${endpointWithQuery}`, {
+  const response = await fetchWithRetry(`${KLANGIO_API_BASE_URL}${endpointWithQuery}`, {
     method: 'POST',
     headers: { 'kl-api-key': apiKey },
     body: formData,
@@ -97,12 +97,32 @@ async function runJob<T>(
   return fetchResult<T>(apiKey, job.job_id);
 }
 
+// The Startup plan allows 2 requests/second; concurrent analyses can trip it.
+// Back off politely on 429/5xx instead of failing the whole analysis.
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  attempts = 4,
+): Promise<Response> {
+  let response = await fetch(url, init);
+  for (let retry = 1; retry < attempts; retry++) {
+    if (response.ok || (response.status !== 429 && response.status < 500)) {
+      return response;
+    }
+    const waitMs = 1500 * retry;
+    console.warn(`Klangio ${response.status} — retrying in ${waitMs}ms (${retry}/${attempts - 1})`);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+    response = await fetch(url, init);
+  }
+  return response;
+}
+
 async function waitForCompletion(apiKey: string, job: JobResponse): Promise<void> {
   const statusUrl = job.status_endpoint_url ||
     `${KLANGIO_API_BASE_URL}/job/${job.job_id}/status`;
 
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
-    const response = await fetch(statusUrl, { headers: { 'kl-api-key': apiKey } });
+    const response = await fetchWithRetry(statusUrl, { headers: { 'kl-api-key': apiKey } });
     if (!response.ok) {
       await raiseApiError(response, 'poll job status');
     }
@@ -120,7 +140,7 @@ async function waitForCompletion(apiKey: string, job: JobResponse): Promise<void
 }
 
 async function fetchResult<T>(apiKey: string, jobId: string): Promise<T> {
-  const response = await fetch(`${KLANGIO_API_BASE_URL}/job/${jobId}/json`, {
+  const response = await fetchWithRetry(`${KLANGIO_API_BASE_URL}/job/${jobId}/json`, {
     headers: { 'kl-api-key': apiKey },
   });
   if (!response.ok) {
