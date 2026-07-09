@@ -38,25 +38,8 @@ const Auth = () => {
       }
 
       if (event === "SIGNED_IN" && session && modeRef.current !== "recovery") {
-        // Make sure the user has a subscription row (free plan by default)
-        const { data: existingSub, error: subCheckError } = await supabase
-          .from("subscriptions")
-          .select("id")
-          .eq("user_id", session.user.id)
-          .maybeSingle();
-
-        if (!existingSub && !subCheckError) {
-          const { error: subError } = await supabase.from("subscriptions").insert({
-            user_id: session.user.id,
-            plan_type: "free",
-            credits_remaining: 3,
-            credits_total: 3,
-          });
-          if (subError) {
-            console.error("Error creating subscription:", subError);
-          }
-        }
-
+        // Subscription rows are created server-side by a database trigger on
+        // signup — the client can only read them.
         navigate("/dashboard");
       }
     });

@@ -20,6 +20,7 @@ export type Database = {
           bpm: number | null
           chords: string[] | null
           chords_timeline: Json | null
+          client_ip: string | null
           created_at: string
           duration: number | null
           error_message: string | null
@@ -39,6 +40,7 @@ export type Database = {
           bpm?: number | null
           chords?: string[] | null
           chords_timeline?: Json | null
+          client_ip?: string | null
           created_at?: string
           duration?: number | null
           error_message?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           bpm?: number | null
           chords?: string[] | null
           chords_timeline?: Json | null
+          client_ip?: string | null
           created_at?: string
           duration?: number | null
           error_message?: string | null

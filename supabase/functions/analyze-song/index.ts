@@ -59,15 +59,39 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: false, error: 'Analysis not found' }, 404);
     }
 
+    // Completed analyses are final — never reprocess (and re-charge) them
+    if (analysis.status === 'completed') {
+      return jsonResponse({ success: true, status: 'completed' }, 200);
+    }
+
     const { data: subscription } = await supabase
       .from('subscriptions')
-      .select('credits_remaining')
+      .select('credits_remaining, plan_type')
       .eq('user_id', user.id)
       .single();
 
-    if (subscription && subscription.credits_remaining <= 0) {
+    if (!subscription || subscription.credits_remaining <= 0) {
       await markFailed(supabase, analysisId, 'No credits remaining. Please upgrade your plan.');
       return jsonResponse({ success: false, error: 'Insufficient credits' }, 402);
+    }
+
+    // Cap free-plan usage per network so credit farming with many emails
+    // doesn't scale (paid plans are unaffected)
+    const clientIp = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || null;
+    if (clientIp) {
+      await supabase.from('song_analysis').update({ client_ip: clientIp }).eq('id', analysisId);
+
+      if (subscription.plan_type === 'free') {
+        const { data: ipCount } = await supabase.rpc('count_recent_free_ip_analyses', { p_ip: clientIp });
+        if (typeof ipCount === 'number' && ipCount >= 9) {
+          await markFailed(
+            supabase,
+            analysisId,
+            'The free analysis limit for your network has been reached this month. Upgrade to Pro to keep analyzing songs.',
+          );
+          return jsonResponse({ success: false, error: 'Free network limit reached' }, 429);
+        }
+      }
     }
 
     const processing = processAnalysis(supabase, klangioApiKey, user.id, analysis);
