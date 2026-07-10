@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Music, Zap, Clock, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BrandLogo } from "@/components/BrandLogo";
 
 const Index = () => {
   return (
@@ -154,6 +155,25 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* Footer */}
+      <footer className="border-t bg-background py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center gap-3 text-center">
+          <div className="flex items-center gap-2">
+            <BrandLogo className="h-6 w-6" />
+            <span className="font-semibold">Chord Finder AI</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Questions or need help?{" "}
+            <a href="mailto:support@chordfinderai.com" className="font-medium text-primary underline">
+              support@chordfinderai.com
+            </a>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Chord Finder AI. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </main>
   );
 };

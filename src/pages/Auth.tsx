@@ -203,6 +203,12 @@ const Auth = () => {
               </button>
             </p>
           )}
+          <p className="pt-4 text-xs text-muted-foreground">
+            Need help?{" "}
+            <a href="mailto:support@chordfinderai.com" className="underline">
+              support@chordfinderai.com
+            </a>
+          </p>
         </div>
       </div>
     </div>
