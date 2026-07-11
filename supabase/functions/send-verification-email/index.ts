@@ -45,8 +45,27 @@ Deno.serve(async (req) => {
       return json({ error: 'Email not configured' }, 500);
     }
 
-    // Fresh single-use token; drop any older ones for this user.
-    await supabase.from('email_verification_tokens').delete().eq('user_id', user.id);
+    // Dedupe: if we already sent one moments ago (e.g. a double-fired signup or
+    // a quick resend), don't send another — the first email's link still works.
+    const since = new Date(Date.now() - 90_000).toISOString();
+    const { data: recent } = await supabase
+      .from('email_verification_tokens')
+      .select('token')
+      .eq('user_id', user.id)
+      .gte('created_at', since)
+      .limit(1);
+    if (recent && recent.length > 0) {
+      console.log('Skipping duplicate verification email for', user.email);
+      return json({ success: true, deduped: true }, 200);
+    }
+
+    // Hygiene: clear only EXPIRED tokens; leave valid ones so earlier emailed
+    // links keep working. Then mint a fresh token.
+    await supabase
+      .from('email_verification_tokens')
+      .delete()
+      .eq('user_id', user.id)
+      .lt('expires_at', new Date().toISOString());
     const { data: tokenRow, error: tokenError } = await supabase
       .from('email_verification_tokens')
       .insert({ user_id: user.id })

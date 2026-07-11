@@ -33,8 +33,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!row) {
-      // Token already used (verification succeeded earlier) or never existed.
-      return json({ success: false, error: 'This link is invalid or has already been used.' }, 200);
+      // Token already used (verification likely already succeeded) or never existed.
+      return json({ success: false, error: 'This link has already been used — your email may already be verified.' }, 200);
     }
 
     if (new Date(row.expires_at) < new Date()) {
@@ -47,8 +47,9 @@ Deno.serve(async (req) => {
       .update({ email_verified: true })
       .eq('user_id', row.user_id);
 
-    // Single-use: consume the token now.
-    await supabase.from('email_verification_tokens').delete().eq('user_id', row.user_id);
+    // Consume only THIS token — leave any other still-valid links working so a
+    // second email never breaks the first one's link.
+    await supabase.from('email_verification_tokens').delete().eq('token', token);
 
     console.log('Email verified for user', row.user_id);
     return json({ success: true }, 200);
