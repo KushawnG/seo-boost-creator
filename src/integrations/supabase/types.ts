@@ -86,6 +86,7 @@ export type Database = {
           credits_total: number
           current_period_end: string | null
           current_period_start: string | null
+          email_verified: boolean
           id: string
           plan_type: string
           status: string | null
@@ -103,6 +104,7 @@ export type Database = {
           credits_total?: number
           current_period_end?: string | null
           current_period_start?: string | null
+          email_verified?: boolean
           id?: string
           plan_type?: string
           status?: string | null
@@ -120,6 +122,7 @@ export type Database = {
           credits_total?: number
           current_period_end?: string | null
           current_period_start?: string | null
+          email_verified?: boolean
           id?: string
           plan_type?: string
           status?: string | null

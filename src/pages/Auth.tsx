@@ -68,7 +68,12 @@ const Auth = () => {
         if (data.user) {
           trackMetaEvent("CompleteRegistration");
         }
-        if (data.user && !data.session) {
+        // Instant access (email auto-confirmed server-side). Fire off an
+        // optional, non-blocking verification email; the SIGNED_IN listener
+        // navigates to the dashboard regardless of whether this succeeds.
+        if (data.session) {
+          supabase.functions.invoke("send-verification-email", { body: {} }).catch(() => {});
+        } else if (data.user) {
           setInfoMessage("Check your inbox — we sent you a link to confirm your account.");
         }
       } else if (mode === "forgot") {

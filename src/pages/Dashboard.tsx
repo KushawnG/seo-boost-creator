@@ -12,6 +12,7 @@ import { BLOCKER_HELP_MESSAGE } from "@/lib/payment-blockers";
 import { trackMetaEvent, PLAN_VALUES } from "@/lib/meta-pixel";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { VerifyEmailBanner } from "@/components/dashboard/VerifyEmailBanner";
 import { HomeTab } from "@/components/dashboard/tabs/HomeTab";
 import { TrackHistoryTab } from "@/components/dashboard/tabs/TrackHistoryTab";
 import { PlanBillingTab } from "@/components/dashboard/tabs/PlanBillingTab";
@@ -179,6 +180,8 @@ const Dashboard = () => {
               </Button>
             </div>
           </div>
+
+          <VerifyEmailBanner />
 
           {renderContent()}
         </div>

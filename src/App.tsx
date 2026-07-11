@@ -12,6 +12,7 @@ import Index from "./pages/Index";
 import AuthPage from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import AnalysisDetail from "./pages/AnalysisDetail";
+import VerifyEmail from "./pages/VerifyEmail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +89,7 @@ const App = () => (
           <PageViewTracker />
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            <Route path="/verify" element={<VerifyEmail />} />
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />
