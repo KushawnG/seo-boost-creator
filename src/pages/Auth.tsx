@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { trackMetaEvent } from "@/lib/meta-pixel";
+import { getAttribution, clearAttribution } from "@/lib/attribution";
 
 type Mode = "signin" | "signup" | "forgot" | "recovery";
 
@@ -59,14 +60,21 @@ const Auth = () => {
         if (error) throw error;
         // navigation happens in the SIGNED_IN listener
       } else if (mode === "signup") {
+        // Attach captured ad attribution so a DB trigger can record which
+        // campaign drove this signup (stored in raw_user_meta_data).
+        const attribution = getAttribution();
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: attribution ?? undefined,
+          },
         });
         if (error) throw error;
         if (data.user) {
           trackMetaEvent("CompleteRegistration");
+          clearAttribution();
         }
         // Instant access (email auto-confirmed server-side). Fire off an
         // optional, non-blocking verification email; the SIGNED_IN listener
