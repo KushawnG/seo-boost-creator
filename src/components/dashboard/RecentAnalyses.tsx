@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Loader2, Play } from "lucide-react";
 import { formatChordName } from "@/lib/chords";
+import { cn } from "@/lib/utils";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -44,8 +44,15 @@ export const RecentAnalyses = () => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Recent Analyses</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {analyses.map((analysis) => (
-          <Card key={analysis.id}>
+        {analyses.map((analysis) => {
+          const isCompleted = analysis.status === 'completed';
+          const card = (
+          <Card
+            className={cn(
+              "h-full",
+              isCompleted && "cursor-pointer transition hover:border-primary/50 hover:shadow-md",
+            )}
+          >
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4 gap-2">
                 <h3 className="text-lg font-semibold truncate">{analysis.title}</h3>
@@ -87,17 +94,24 @@ export const RecentAnalyses = () => {
                       </div>
                     </div>
                   )}
-                  <Link to={`/dashboard/analysis/${analysis.id}`} className="block pt-2">
-                    <Button className="w-full gap-2" variant="outline">
-                      <Play className="h-4 w-4" />
-                      View synced chords
-                    </Button>
-                  </Link>
+                  <div className="flex items-center gap-2 pt-2 text-sm font-medium text-primary">
+                    <Play className="h-4 w-4" />
+                    View synced chords
+                  </div>
                 </div>
               )}
             </CardContent>
           </Card>
-        ))}
+          );
+
+          return isCompleted ? (
+            <Link key={analysis.id} to={`/dashboard/analysis/${analysis.id}`} className="block">
+              {card}
+            </Link>
+          ) : (
+            <div key={analysis.id}>{card}</div>
+          );
+        })}
       </div>
     </div>
   );

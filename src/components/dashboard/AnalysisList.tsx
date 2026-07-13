@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Eye, Trash2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { planFor } from "@/lib/plans";
 import { useSubscription } from "@/hooks/use-subscription";
 
@@ -26,6 +26,7 @@ interface AnalysisListProps {
 export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: subscription } = useSubscription();
   const historyLimit = planFor(subscription?.plan_type).historyLimit;
@@ -113,7 +114,15 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
       </TableHeader>
       <TableBody>
         {analyses.map((analysis) => (
-          <TableRow key={analysis.id}>
+          <TableRow
+            key={analysis.id}
+            className={analysis.status === 'completed' ? "cursor-pointer" : undefined}
+            onClick={
+              analysis.status === 'completed'
+                ? () => navigate(`/dashboard/analysis/${analysis.id}`)
+                : undefined
+            }
+          >
             <TableCell>{analysis.title}</TableCell>
             <TableCell>{analysis.key || 'N/A'}</TableCell>
             <TableCell>{analysis.bpm || 'N/A'}</TableCell>
@@ -127,18 +136,15 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
             </TableCell>
             <TableCell>
               <div className="flex items-center gap-1">
-                {analysis.status === 'completed' && (
-                  <Link to={`/dashboard/analysis/${analysis.id}`}>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="View chords">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                )}
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleDelete(analysis.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(analysis.id);
+                  }}
                   className="h-8 w-8"
+                  title="Delete"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

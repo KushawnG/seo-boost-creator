@@ -222,13 +222,13 @@ const AnalysisDetail = () => {
                     key={mode}
                     variant={instrument === mode ? "secondary" : "ghost"}
                     size="icon"
-                    className="relative h-8 w-8"
+                    className="relative h-9 w-9"
                     title={mode !== 'off' && !diagramsUnlocked ? `${label} (Pro feature)` : label}
                     onClick={() => selectInstrument(mode)}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-5 w-5" />
                     {mode !== 'off' && !diagramsUnlocked && (
-                      <Lock className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 text-muted-foreground" />
+                      <Lock className="absolute -right-0.5 -top-0.5 h-3 w-3 text-muted-foreground" />
                     )}
                   </Button>
                 ))}
