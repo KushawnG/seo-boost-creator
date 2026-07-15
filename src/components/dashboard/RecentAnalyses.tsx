@@ -56,9 +56,12 @@ export const RecentAnalyses = () => {
             <CardContent className="p-6">
               <div className="flex justify-between items-start mb-4 gap-2">
                 <h3 className="text-lg font-semibold truncate">{analysis.title}</h3>
-                <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
-                  {analysis.status}
-                </Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  {analysis.is_demo && <Badge variant="secondary">🎁 Free demo</Badge>}
+                  <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
+                    {analysis.status}
+                  </Badge>
+                </div>
               </div>
 
               {analysis.status === 'pending' && (

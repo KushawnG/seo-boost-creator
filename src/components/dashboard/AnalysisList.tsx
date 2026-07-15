@@ -123,7 +123,14 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
                 : undefined
             }
           >
-            <TableCell>{analysis.title}</TableCell>
+            <TableCell>
+              <span className="inline-flex items-center gap-2">
+                {analysis.title}
+                {analysis.is_demo && (
+                  <Badge variant="secondary" className="text-xs">🎁 Demo</Badge>
+                )}
+              </span>
+            </TableCell>
             <TableCell>{analysis.key || 'N/A'}</TableCell>
             <TableCell>{analysis.bpm || 'N/A'}</TableCell>
             <TableCell>

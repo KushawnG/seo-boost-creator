@@ -26,6 +26,7 @@ export type Database = {
           error_message: string | null
           file_path: string | null
           id: string
+          is_demo: boolean
           key: string | null
           status: string
           time_signature: string | null
@@ -46,6 +47,7 @@ export type Database = {
           error_message?: string | null
           file_path?: string | null
           id?: string
+          is_demo?: boolean
           key?: string | null
           status?: string
           time_signature?: string | null
@@ -66,6 +68,7 @@ export type Database = {
           error_message?: string | null
           file_path?: string | null
           id?: string
+          is_demo?: boolean
           key?: string | null
           status?: string
           time_signature?: string | null

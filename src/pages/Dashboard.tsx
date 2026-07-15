@@ -28,7 +28,10 @@ type TabId = (typeof NAV_ITEMS)[number]["id"];
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<TabId>("home");
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    return NAV_ITEMS.some((n) => n.id === t) ? (t as TabId) : "home";
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 

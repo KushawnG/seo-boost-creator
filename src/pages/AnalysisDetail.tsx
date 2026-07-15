@@ -32,23 +32,8 @@ const AnalysisDetail = () => {
   const { toast } = useToast();
 
   const { data: subscription } = useSubscription();
-  const diagramsUnlocked =
+  const isPaid =
     subscription?.plan_type === 'pro' || subscription?.plan_type === 'premium';
-
-  const [instrument, setInstrument] = useState<Instrument>(
-    () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',
-  );
-  const selectInstrument = (next: Instrument) => {
-    if (next !== 'off' && !diagramsUnlocked) {
-      toast({
-        title: "Chord diagrams are a Pro feature",
-        description: "Upgrade to Pro or Premium to see guitar fingerings and piano keys synced with the song.",
-      });
-      return;
-    }
-    setInstrument(next);
-    localStorage.setItem('chord-instrument', next);
-  };
 
   const { data: analysis, isLoading } = useQuery({
     queryKey: ['analysis', id],
@@ -66,6 +51,25 @@ const AnalysisDetail = () => {
     refetchInterval: (query) =>
       query.state.data?.status === 'pending' ? 3000 : false,
   });
+
+  // Diagrams unlock for paid plans, OR on the free demo song — a taste of the feature.
+  const isDemo = !!analysis?.is_demo;
+  const diagramsUnlocked = isPaid || isDemo;
+
+  const [instrument, setInstrument] = useState<Instrument>(
+    () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',
+  );
+  const selectInstrument = (next: Instrument) => {
+    if (next !== 'off' && !diagramsUnlocked) {
+      toast({
+        title: "Chord diagrams are a Pro feature",
+        description: "Upgrade to Pro or Premium to see guitar fingerings and piano keys synced with the song.",
+      });
+      return;
+    }
+    setInstrument(next);
+    localStorage.setItem('chord-instrument', next);
+  };
 
   const { data: audioUrl } = useQuery({
     queryKey: ['analysis-audio-url', analysis?.file_path],
@@ -184,6 +188,28 @@ const AnalysisDetail = () => {
         {analysis.bpm && <Badge className="text-sm">{analysis.bpm} BPM</Badge>}
         {analysis.time_signature && <Badge className="text-sm">{analysis.time_signature}</Badge>}
       </div>
+
+      {isDemo && !isPaid && (
+        <Card className="mb-6 border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="text-xl">🎁</span>
+              <div>
+                <p className="text-sm font-semibold">
+                  This is your free demo song — chord diagrams are unlocked here.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tap the guitar 🎸 or piano 🎹 icon above to see the fingerings. Upgrade to Pro to
+                  unlock diagrams on every song you analyze.
+                </p>
+              </div>
+            </div>
+            <Link to="/dashboard?tab=billing" className="shrink-0">
+              <Button size="sm">Upgrade to unlock all songs</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Player */}
