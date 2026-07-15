@@ -205,7 +205,7 @@ const AnalysisDetail = () => {
               </div>
             </div>
             <Link to="/dashboard?tab=billing" className="shrink-0">
-              <Button size="sm">Upgrade to unlock all songs</Button>
+              <Button size="sm">Unlock diagrams on all songs</Button>
             </Link>
           </CardContent>
         </Card>
