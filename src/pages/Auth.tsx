@@ -18,8 +18,15 @@ const Auth = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
+  // A visitor who pasted a song on the landing page and hit Analyze arrives here
+  // with the song stashed in localStorage — show them why they're signing up.
+  const pendingSong =
+    typeof window !== "undefined"
+      ? localStorage.getItem("pendingAnalysis") || localStorage.getItem("pendingAnalysisFile")
+      : null;
+
   const [mode, setMode] = useState<Mode>(
-    searchParams.get("signup") === "true" ? "signup" : "signin",
+    searchParams.get("signup") === "true" || !!pendingSong ? "signup" : "signin",
   );
   const modeRef = useRef(mode);
   modeRef.current = mode;
@@ -105,7 +112,7 @@ const Auth = () => {
   };
 
   const heading =
-    mode === "signup" ? "Create your account"
+    mode === "signup" ? (pendingSong ? "Almost there — create your free account" : "Create your account")
     : mode === "forgot" ? "Reset your password"
     : mode === "recovery" ? "Set a new password"
     : "Sign in to your account";
@@ -131,6 +138,16 @@ const Auth = () => {
           </Link>
           <h2 className="mt-6 text-3xl font-extrabold text-foreground">{heading}</h2>
         </div>
+
+        {pendingSong && (mode === "signup" || mode === "signin") && (
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-center">
+            <p className="text-sm font-semibold">🎵 One quick step to see your song's chords</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sign {mode === "signup" ? "up free" : "in"} to get the chords, key &amp; BPM for the song
+              you entered — synced to the music, then it's ready in your dashboard.
+            </p>
+          </div>
+        )}
 
         {errorMessage && (
           <Alert variant="destructive">

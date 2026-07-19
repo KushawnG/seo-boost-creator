@@ -31,13 +31,20 @@ export const AnalysisForm = () => {
   const queryClient = useQueryClient();
   const pollTimer = useRef<number | null>(null);
 
-  // Pick up a URL the visitor entered on the landing page before logging in
+  // Pick up a song the visitor entered on the landing page before logging in,
+  // and immediately analyze it so they land straight on their results.
   useEffect(() => {
     const pending = localStorage.getItem('pendingAnalysis');
     if (pending) {
-      setUrl(pending);
       localStorage.removeItem('pendingAnalysis');
+      setUrl(pending);
+      if (extractYouTubeId(pending.trim())) {
+        void analyzeUrl(pending);
+      }
     }
+    // The actual uploaded file can't survive the redirect, so just clear the marker.
+    localStorage.removeItem('pendingAnalysisFile');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -117,10 +124,11 @@ export const AnalysisForm = () => {
     pollTimer.current = window.setTimeout(() => pollAnalysis(analysisId), 3000);
   };
 
-  const analyzeUrl = async () => {
-    if (!url) return;
+  const analyzeUrl = async (rawUrl?: string) => {
+    const target = (rawUrl ?? url).trim();
+    if (!target) return;
 
-    const videoId = extractYouTubeId(url.trim());
+    const videoId = extractYouTubeId(target);
     if (!videoId) {
       toast({
         title: "Invalid Link",
@@ -139,7 +147,7 @@ export const AnalysisForm = () => {
       const { data: analysis, error: insertError } = await supabase
         .from('song_analysis')
         .insert({
-          url: url.trim(),
+          url: target,
           youtube_id: videoId,
           title: 'YouTube song (fetching title...)',
           status: 'pending',
@@ -313,7 +321,7 @@ export const AnalysisForm = () => {
           onChange={(e) => setUrl(e.target.value)}
           disabled={isSubmitting}
         />
-        <Button onClick={analyzeUrl} disabled={!url || isSubmitting}>
+        <Button onClick={() => analyzeUrl()} disabled={!url || isSubmitting}>
           {isSubmitting ? "Analyzing..." : "Analyze"}
         </Button>
       </div>
