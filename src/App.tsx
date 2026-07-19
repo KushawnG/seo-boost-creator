@@ -13,6 +13,8 @@ import AuthPage from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import AnalysisDetail from "./pages/AnalysisDetail";
 import VerifyEmail from "./pages/VerifyEmail";
+import SongLibrary from "./pages/SongLibrary";
+import SongDetail from "./pages/SongDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -90,6 +92,8 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/verify" element={<VerifyEmail />} />
+            <Route path="/songs" element={<SongLibrary />} />
+            <Route path="/songs/:slug" element={<SongDetail />} />
             <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Dashboard />

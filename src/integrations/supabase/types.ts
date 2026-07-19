@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      public_songs: {
+        Row: {
+          artist: string | null
+          bpm: number | null
+          created_at: string
+          main_chords: string[] | null
+          published: boolean
+          slug: string
+          song_key: string | null
+          source_analysis_id: string | null
+          time_signature: string | null
+          title: string
+          youtube_id: string
+        }
+        Insert: {
+          artist?: string | null
+          bpm?: number | null
+          created_at?: string
+          main_chords?: string[] | null
+          published?: boolean
+          slug: string
+          song_key?: string | null
+          source_analysis_id?: string | null
+          time_signature?: string | null
+          title: string
+          youtube_id: string
+        }
+        Update: {
+          artist?: string | null
+          bpm?: number | null
+          created_at?: string
+          main_chords?: string[] | null
+          published?: boolean
+          slug?: string
+          song_key?: string | null
+          source_analysis_id?: string | null
+          time_signature?: string | null
+          title?: string
+          youtube_id?: string
+        }
+        Relationships: []
+      }
       song_analysis: {
         Row: {
           beats: Json | null

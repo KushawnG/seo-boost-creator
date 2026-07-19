@@ -100,6 +100,9 @@ export const Navigation = () => {
             <a href="#pricing" className="text-muted-foreground hover:text-foreground">
               Pricing
             </a>
+            <Link to="/songs" className="text-muted-foreground hover:text-foreground">
+              Chord Library
+            </Link>
           </div>
           
           <div className="hidden md:flex flex-1 justify-end items-center space-x-4">
@@ -136,6 +139,9 @@ export const Navigation = () => {
               <a href="#pricing" className="text-muted-foreground hover:text-foreground px-2">
                 Pricing
               </a>
+              <Link to="/songs" className="text-muted-foreground hover:text-foreground px-2">
+                Chord Library
+              </Link>
               {isAuthenticated ? (
                 <>
                   <Link to="/dashboard">
