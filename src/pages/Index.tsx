@@ -81,7 +81,8 @@ const Index = () => {
             
             <Card className="p-8 border-primary">
               <h3 className="text-xl font-semibold mb-4">Pro</h3>
-              <div className="text-4xl font-bold mb-6">$12<span className="text-lg text-muted-foreground">/month</span></div>
+              <div className="text-4xl font-bold mb-1">$12<span className="text-lg text-muted-foreground">/month</span></div>
+              <p className="mb-6 text-sm text-primary">or $120/yr — 2 months free</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
@@ -118,7 +119,8 @@ const Index = () => {
             
             <Card className="p-8">
               <h3 className="text-xl font-semibold mb-4">Premium</h3>
-              <div className="text-4xl font-bold mb-6">$29<span className="text-lg text-muted-foreground">/month</span></div>
+              <div className="text-4xl font-bold mb-1">$29<span className="text-lg text-muted-foreground">/month</span></div>
+              <p className="mb-6 text-sm text-primary">or $290/yr — 2 months free</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />

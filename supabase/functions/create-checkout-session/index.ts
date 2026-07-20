@@ -18,6 +18,8 @@ Deno.serve(async (req) => {
     const allowedPrices = [
       Deno.env.get('STRIPE_PRICE_PRO'),
       Deno.env.get('STRIPE_PRICE_PREMIUM'),
+      Deno.env.get('STRIPE_PRICE_PRO_ANNUAL'),
+      Deno.env.get('STRIPE_PRICE_PREMIUM_ANNUAL'),
     ].filter(Boolean);
     if (!priceId || !allowedPrices.includes(priceId)) {
       return json({ error: 'Unknown plan' }, 400);
@@ -64,7 +66,10 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id);
 
     const origin = req.headers.get('origin') ?? 'https://chordfinderai.com';
-    const planName = priceId === Deno.env.get('STRIPE_PRICE_PREMIUM') ? 'premium' : 'pro';
+    const isPremium =
+      priceId === Deno.env.get('STRIPE_PRICE_PREMIUM') ||
+      priceId === Deno.env.get('STRIPE_PRICE_PREMIUM_ANNUAL');
+    const planName = isPremium ? 'premium' : 'pro';
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],

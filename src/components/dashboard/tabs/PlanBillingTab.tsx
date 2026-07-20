@@ -16,7 +16,23 @@ import { CurrentPlan } from "../membership/CurrentPlan";
 import { PaymentMethodsList, type PaymentMethodInfo } from "../billing/PaymentMethodsList";
 import { BillingHistory, type InvoiceInfo } from "../billing/BillingHistory";
 
-const PLANS = {
+type BillingInterval = "monthly" | "annual";
+
+// Live Stripe price ids per plan and billing interval
+const PRICE_IDS = {
+  pro: {
+    monthly: "price_1Tr1OBBN1naKzz61yFltF0O2",
+    annual: "price_1TvL8DBN1naKzz61PCVWnqe4",
+  },
+  premium: {
+    monthly: "price_1Tr1OCBN1naKzz619VkWw4X4",
+    annual: "price_1TvL8DBN1naKzz618c6UpjXC",
+  },
+} as const;
+
+const PREMIUM_PRICE_IDS: string[] = [PRICE_IDS.premium.monthly, PRICE_IDS.premium.annual];
+
+const buildPlans = (interval: BillingInterval) => ({
   FREE: {
     title: "Free Plan",
     price: "$0/mo",
@@ -30,29 +46,29 @@ const PLANS = {
   },
   PRO: {
     title: "Pro Plan",
-    price: "$12/mo",
-    priceId: "price_1Tr1OBBN1naKzz61yFltF0O2",
+    price: interval === "annual" ? "$120/yr" : "$12/mo",
+    priceId: PRICE_IDS.pro[interval],
     features: [
       { icon: Music, text: "15 analyses/month" },
       { icon: Zap, text: "Guitar & piano diagrams" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Music, text: "Unlimited history" }
     ],
-    footnote: "Cancel anytime"
+    footnote: interval === "annual" ? "2 months free vs monthly · Cancel anytime" : "Cancel anytime"
   },
   PREMIUM: {
     title: "Premium Plan",
-    price: "$29/mo",
-    priceId: "price_1Tr1OCBN1naKzz619VkWw4X4",
+    price: interval === "annual" ? "$290/yr" : "$29/mo",
+    priceId: PRICE_IDS.premium[interval],
     features: [
       { icon: Music, text: "40 analyses/month" },
       { icon: Zap, text: "Guitar & piano diagrams" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Music, text: "Unlimited history" }
     ],
-    footnote: "Cancel anytime"
+    footnote: interval === "annual" ? "2 months free vs monthly · Cancel anytime" : "Cancel anytime"
   }
-};
+});
 
 interface BillingInfo {
   hasCustomer: boolean;
@@ -64,6 +80,8 @@ export const PlanBillingTab = () => {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("monthly");
+  const PLANS = buildPlans(billingInterval);
 
   const { data: subscription } = useSubscription();
   const { cancelSubscription, resumeSubscription, isWorking } = useSubscriptionActions();
@@ -81,7 +99,7 @@ export const PlanBillingTab = () => {
     try {
       setIsLoading(true);
 
-      const planKey = priceId === PLANS.PREMIUM.priceId ? 'premium' : 'pro';
+      const planKey = PREMIUM_PRICE_IDS.includes(priceId) ? 'premium' : 'pro';
       trackMetaEvent('InitiateCheckout', {
         value: PLAN_VALUES[planKey],
         currency: 'USD',
@@ -151,6 +169,10 @@ export const PlanBillingTab = () => {
   const currentPlanType = subscription?.plan_type || 'free';
   const isPaidPlan = currentPlanType === 'pro' || currentPlanType === 'premium';
   const plan = planFor(currentPlanType);
+  const currentPriceLabel =
+    subscription?.stripe_price_id === PRICE_IDS.pro.annual ? "$120/yr"
+    : subscription?.stripe_price_id === PRICE_IDS.premium.annual ? "$290/yr"
+    : plan.price;
 
   return (
     <div className="space-y-6">
@@ -159,7 +181,7 @@ export const PlanBillingTab = () => {
           <div className="space-y-6">
             <div className="flex items-start justify-between gap-4">
               <CurrentPlan subscription={subscription ?? undefined} />
-              <span className="shrink-0 text-lg font-semibold">{plan.price}</span>
+              <span className="shrink-0 text-lg font-semibold">{currentPriceLabel}</span>
             </div>
 
             {isPaidPlan && subscription?.stripe_subscription_id && (
@@ -190,7 +212,27 @@ export const PlanBillingTab = () => {
             />
 
             <div>
-              <h3 className="mb-4 text-lg font-semibold">Available Plans</h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold">Available Plans</h3>
+                <div className="flex items-center rounded-lg border p-1">
+                  <button
+                    onClick={() => setBillingInterval("monthly")}
+                    className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                      billingInterval === "monthly" ? "bg-secondary" : "text-muted-foreground"
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setBillingInterval("annual")}
+                    className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                      billingInterval === "annual" ? "bg-secondary" : "text-muted-foreground"
+                    }`}
+                  >
+                    Annual <span className="text-primary">· 2 months free</span>
+                  </button>
+                </div>
+              </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 {Object.values(PLANS).map((planOption) => {
                   const isCurrentPlan = currentPlanType === planOption.title.toLowerCase().split(' ')[0];

@@ -10,9 +10,14 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
 );
 
+// Annual prices map to the same plans; monthly credit refills for annual
+// subscribers happen via the pg_cron reset (credits_reset_at + 30 days), since
+// their invoice.paid only fires yearly.
 const PLAN_BY_PRICE: Record<string, { plan: string; credits: number }> = {
   [Deno.env.get('STRIPE_PRICE_PRO') ?? 'price_pro']: { plan: 'pro', credits: 15 },
   [Deno.env.get('STRIPE_PRICE_PREMIUM') ?? 'price_premium']: { plan: 'premium', credits: 40 },
+  [Deno.env.get('STRIPE_PRICE_PRO_ANNUAL') ?? 'price_pro_annual']: { plan: 'pro', credits: 15 },
+  [Deno.env.get('STRIPE_PRICE_PREMIUM_ANNUAL') ?? 'price_premium_annual']: { plan: 'premium', credits: 40 },
 };
 
 const FREE_PLAN = { plan: 'free', credits: 3 };
