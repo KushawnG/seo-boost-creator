@@ -103,7 +103,12 @@ export const EarTrainingView = ({
   };
 
   const perfect =
-    checked && checked.found === checked.total && (checked.keyCorrect === true || !hasKey);
+    checked &&
+    checked.found === checked.total &&
+    checked.chordResults.every(Boolean) &&
+    (checked.keyCorrect === true || !hasKey);
+  const allFoundWithExtras =
+    checked && checked.found === checked.total && !checked.chordResults.every(Boolean);
 
   return (
     <div className="space-y-6">
@@ -259,6 +264,12 @@ export const EarTrainingView = ({
                 <p className="font-semibold">
                   🎉 Perfect ear! You nailed {hasKey ? "the key and " : ""}all {checked.total} main
                   chords.
+                </p>
+              ) : allFoundWithExtras ? (
+                <p>
+                  You found all <span className="font-bold">{checked.total}</span> main chords
+                  {hasKey && checked.keyCorrect === false && " (the key isn't right yet)"} — but
+                  some of your guesses aren't in the song. Remove the ✗ ones for a perfect score!
                 </p>
               ) : (
                 <p>
