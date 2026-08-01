@@ -105,6 +105,10 @@ const Index = () => {
                   <span>Guitar &amp; piano chord diagrams</span>
                 </li>
                 <li className="flex items-center">
+                  <Music className="h-5 w-5 text-primary mr-2" />
+                  <span>Ear Training Mode</span>
+                </li>
+                <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
                   <span>Unlimited song history</span>
                 </li>
@@ -141,6 +145,10 @@ const Index = () => {
                 <li className="flex items-center">
                   <Zap className="h-5 w-5 text-primary mr-2" />
                   <span>Guitar &amp; piano chord diagrams</span>
+                </li>
+                <li className="flex items-center">
+                  <Music className="h-5 w-5 text-primary mr-2" />
+                  <span>Ear Training Mode</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />

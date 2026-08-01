@@ -9,7 +9,7 @@ import { useSubscription, useSubscriptionActions } from "@/hooks/use-subscriptio
 import { planFor } from "@/lib/plans";
 import { paymentsLikelyBlocked, BLOCKER_HELP_MESSAGE } from "@/lib/payment-blockers";
 import { trackMetaEvent, PLAN_VALUES } from "@/lib/meta-pixel";
-import { Music, Zap, Clock } from "lucide-react";
+import { Music, Zap, Clock, Ear } from "lucide-react";
 import { PlanCard } from "../membership/PlanCard";
 import { CreditsProgress } from "../membership/CreditsProgress";
 import { CurrentPlan } from "../membership/CurrentPlan";
@@ -51,6 +51,7 @@ const buildPlans = (interval: BillingInterval) => ({
     features: [
       { icon: Music, text: "15 analyses/month" },
       { icon: Zap, text: "Guitar & piano diagrams" },
+      { icon: Ear, text: "Ear Training Mode" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Music, text: "Unlimited history" }
     ],
@@ -63,6 +64,7 @@ const buildPlans = (interval: BillingInterval) => ({
     features: [
       { icon: Music, text: "40 analyses/month" },
       { icon: Zap, text: "Guitar & piano diagrams" },
+      { icon: Ear, text: "Ear Training Mode" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Music, text: "Unlimited history" }
     ],

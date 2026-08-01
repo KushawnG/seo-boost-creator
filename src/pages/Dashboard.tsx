@@ -13,6 +13,7 @@ import { trackMetaEvent, PLAN_VALUES } from "@/lib/meta-pixel";
 import { BrandLogo } from "@/components/BrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VerifyEmailBanner } from "@/components/dashboard/VerifyEmailBanner";
+import { EarTrainingToggle } from "@/components/EarTrainingToggle";
 import { HomeTab } from "@/components/dashboard/tabs/HomeTab";
 import { TrackHistoryTab } from "@/components/dashboard/tabs/TrackHistoryTab";
 import { PlanBillingTab } from "@/components/dashboard/tabs/PlanBillingTab";
@@ -174,7 +175,8 @@ const Dashboard = () => {
             <h1 className="text-2xl font-bold">
               {NAV_ITEMS.find((n) => n.id === activeTab)?.label ?? "Dashboard"}
             </h1>
-            <div className="flex w-full items-center gap-3 md:w-auto">
+            <div className="flex w-full flex-wrap items-center gap-3 md:w-auto">
+              <EarTrainingToggle onUpsell={() => selectTab("billing")} />
               <div className="text-sm md:text-base">
                 Credits: <span className="font-semibold">{creditsRemaining}</span> remaining
               </div>

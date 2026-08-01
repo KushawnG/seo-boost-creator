@@ -20,6 +20,8 @@ import {
 } from "@/lib/chords";
 import { type Instrument, hasDiagram } from "@/lib/chord-shapes";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
+import { EarTrainingView } from "@/components/analysis/EarTrainingView";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +57,11 @@ const AnalysisDetail = () => {
   // Diagrams unlock for paid plans, OR on the free demo song — a taste of the feature.
   const isDemo = !!analysis?.is_demo;
   const diagramsUnlocked = isPaid || isDemo;
+
+  // Ear Training Mode (Pro/Premium): hide the answers and quiz the user instead.
+  const [earMode] = useEarTrainingMode();
+  const [earRevealed, setEarRevealed] = useState(false);
+  useEffect(() => setEarRevealed(false), [id]);
 
   const [instrument, setInstrument] = useState<Instrument>(
     () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',
@@ -172,6 +179,20 @@ const AnalysisDetail = () => {
             <p className="mt-1 text-muted-foreground">{analysis.error_message || 'Something went wrong.'}</p>
           </CardContent>
         </Card>
+      </PageShell>
+    );
+  }
+
+  // Quiz view replaces the synced player (which would spoil the answers)
+  if (earMode && isPaid && !earRevealed) {
+    return (
+      <PageShell title={analysis.title}>
+        <EarTrainingView
+          analysis={analysis}
+          timeline={timeline}
+          audioUrl={audioUrl}
+          onReveal={() => setEarRevealed(true)}
+        />
       </PageShell>
     );
   }
