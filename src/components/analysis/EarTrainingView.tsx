@@ -166,9 +166,12 @@ export const EarTrainingView = ({
       const nextPending = [...pending];
       nextPending[idx] = null;
       setPending(nextPending);
+      const remaining = unlockedIdxs.length - 1;
       setHintLog([
         ...hintLog,
-        `Chord ${idx + 1} is ${formatChordName(targets[idx])} — locked it in for you. The last one's all yours!`,
+        `Chord ${idx + 1} is ${formatChordName(targets[idx])} — locked it in for you.${
+          remaining === 1 ? " The last one's all yours!" : ""
+        }`,
       ]);
     }
   };
