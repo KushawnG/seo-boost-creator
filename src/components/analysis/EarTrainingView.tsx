@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Ear, Eye, Lightbulb, Plus, Repeat, X } from "lucide-react";
+import { Eye, Lightbulb, Plus, Repeat, X } from "lucide-react";
 import { type ChordSpan, formatChordName } from "@/lib/chords";
 import {
   type ChordQuality,
@@ -18,6 +18,7 @@ import {
   parseKey,
 } from "@/lib/ear-training";
 import { YouTubePlayer } from "@/components/analysis/YouTubePlayer";
+import { EarTrainingToggle } from "@/components/EarTrainingToggle";
 import { cn } from "@/lib/utils";
 
 type Analysis = Database["public"]["Tables"]["song_analysis"]["Row"];
@@ -25,13 +26,6 @@ type Analysis = Database["public"]["Tables"]["song_analysis"]["Row"];
 interface ChordGuess {
   pc: number;
   quality: ChordQuality;
-}
-
-interface CheckResult {
-  keyCorrect: boolean | null; // null = no key guess made
-  chordResults: boolean[];
-  found: number;
-  total: number;
 }
 
 const selectClass =
@@ -50,65 +44,77 @@ export const EarTrainingView = ({
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
 
+  // Targets = the song's main chords, in the order they first appear.
+  const targets = useMemo(() => mainChords(timeline, 4), [timeline]);
+  const opening = useMemo(() => firstChord(timeline), [timeline]);
+  const hasKey = !!parseKey(analysis.key);
+
   const [keyGuess, setKeyGuess] = useState("");
+  const [keyResult, setKeyResult] = useState<boolean | null>(null); // null = unchecked
   const [rootPick, setRootPick] = useState("");
   const [qualityPick, setQualityPick] = useState<ChordQuality>("maj");
-  const [chordGuesses, setChordGuesses] = useState<ChordGuess[]>([]);
-  const [checked, setChecked] = useState<CheckResult | null>(null);
+  // One slot per target chord: locked (solved) or holding a pending guess.
+  const [locked, setLocked] = useState<boolean[]>(() => targets.map(() => false));
+  const [pending, setPending] = useState<(ChordGuess | null)[]>(() => targets.map(() => null));
+  const [lastCheck, setLastCheck] = useState<{ newlyLocked: number; wrong: number } | null>(null);
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [firstChordRevealed, setFirstChordRevealed] = useState(false);
   const [showDiatonic, setShowDiatonic] = useState(false);
 
-  const targets = useMemo(() => mainChords(timeline, 4), [timeline]);
-  const opening = useMemo(() => firstChord(timeline), [timeline]);
-  const hasKey = !!parseKey(analysis.key);
-  const keyKnown = keyRevealed || checked?.keyCorrect === true;
+  const lockedCount = locked.filter(Boolean).length;
+  const allLocked = targets.length > 0 && lockedCount === targets.length;
+  const keyKnown = keyRevealed || keyResult === true;
+  const won = allLocked && (keyKnown || !hasKey);
   const diatonic = useMemo(
     () => (keyKnown ? diatonicChords(analysis.key) : null),
     [keyKnown, analysis.key],
   );
 
-  // Songs loop automatically in this mode; autoplay is best-effort (browsers
-  // may require one interaction first — the controls are right there).
+  // Songs loop automatically in this mode; autoplay is best-effort.
   useEffect(() => {
     audioRef.current?.play().catch(() => {});
   }, [audioUrl]);
 
-  const addChordGuess = () => {
-    if (rootPick === "") return;
+  const freeSlot = pending.findIndex((p, i) => !locked[i] && p === null);
+
+  const placeChord = () => {
+    if (rootPick === "" || freeSlot === -1) return;
     const guess = { pc: Number(rootPick), quality: qualityPick };
-    if (chordGuesses.some((g) => g.pc === guess.pc && g.quality === guess.quality)) return;
-    setChordGuesses([...chordGuesses, guess]);
-    setChecked(null);
+    const next = [...pending];
+    next[freeSlot] = guess;
+    setPending(next);
+    setLastCheck(null);
   };
 
-  const removeChordGuess = (index: number) => {
-    setChordGuesses(chordGuesses.filter((_, i) => i !== index));
-    setChecked(null);
+  const clearSlot = (i: number) => {
+    if (locked[i]) return;
+    const next = [...pending];
+    next[i] = null;
+    setPending(next);
+    setLastCheck(null);
   };
 
   const checkAnswers = () => {
-    const chordResults = chordGuesses.map((g) =>
-      targets.some((t) => chordGuessMatch(g.pc, g.quality, t)),
-    );
-    const found = targets.filter((t) =>
-      chordGuesses.some((g) => chordGuessMatch(g.pc, g.quality, t)),
-    ).length;
-    setChecked({
-      keyCorrect: hasKey && keyGuess ? keyGuessCorrect(keyGuess, analysis.key) : null,
-      chordResults,
-      found,
-      total: targets.length,
-    });
+    const nextLocked = [...locked];
+    let newlyLocked = 0;
+    let wrong = 0;
+    for (const guess of pending) {
+      if (!guess) continue;
+      const hit = targets.findIndex((t, j) => !nextLocked[j] && chordGuessMatch(guess.pc, guess.quality, t));
+      if (hit >= 0) {
+        nextLocked[hit] = true;
+        newlyLocked++;
+      } else {
+        wrong++;
+      }
+    }
+    setLocked(nextLocked);
+    setPending(targets.map(() => null));
+    if (hasKey && keyGuess) setKeyResult(keyGuessCorrect(keyGuess, analysis.key));
+    setLastCheck({ newlyLocked, wrong });
   };
 
-  const perfect =
-    checked &&
-    checked.found === checked.total &&
-    checked.chordResults.every(Boolean) &&
-    (checked.keyCorrect === true || !hasKey);
-  const allFoundWithExtras =
-    checked && checked.found === checked.total && !checked.chordResults.every(Boolean);
+  const canCheck = pending.some((p) => p !== null) || (!!keyGuess && keyResult === null);
 
   return (
     <div className="space-y-6">
@@ -116,9 +122,7 @@ export const EarTrainingView = ({
       <Card>
         <CardContent className="p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Ear className="h-4 w-4 text-primary" /> Ear Training Mode
-            </div>
+            <EarTrainingToggle />
             {analysis.bpm && <Badge variant="secondary">{analysis.bpm} BPM</Badge>}
           </div>
           {audioUrl ? (
@@ -142,27 +146,33 @@ export const EarTrainingView = ({
         </CardContent>
       </Card>
 
-      {/* Guesses */}
+      {/* The game */}
       <Card>
         <CardContent className="space-y-6 p-6">
           <div>
             <h2 className="text-lg font-bold">What do you hear? 🎧</h2>
             <p className="text-sm text-muted-foreground">
-              Work out the key and the main chords by ear, then check your answers.
+              Fill every chord slot and name the key. Correct chords lock in — wrong guesses bounce
+              out, so keep listening and try again.
             </p>
           </div>
 
+          {/* Step 1 — key */}
           {hasKey && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">The key</label>
+              <div className="text-sm font-medium">
+                Step 1 · The key{" "}
+                {keyKnown && <span className="text-green-600 dark:text-green-400">✓</span>}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select
                   className={selectClass}
                   value={keyGuess}
                   onChange={(e) => {
                     setKeyGuess(e.target.value);
-                    setChecked(null);
+                    setKeyResult(null);
                   }}
+                  disabled={keyKnown}
                 >
                   <option value="">Pick a key…</option>
                   {KEY_GUESS_OPTIONS.map((o) => (
@@ -171,19 +181,50 @@ export const EarTrainingView = ({
                     </option>
                   ))}
                 </select>
-                {checked?.keyCorrect === true && <Badge className="bg-green-600">✓ Correct!</Badge>}
-                {checked?.keyCorrect === false && <Badge variant="destructive">✗ Not it</Badge>}
-                {keyRevealed && (
-                  <Badge variant="secondary">Key: {analysis.key}</Badge>
-                )}
+                {keyResult === true && <Badge className="bg-green-600">✓ Correct!</Badge>}
+                {keyResult === false && <Badge variant="destructive">✗ Not it — listen again</Badge>}
+                {keyRevealed && <Badge variant="secondary">Key: {analysis.key}</Badge>}
               </div>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              The main chords <span className="text-muted-foreground">({targets.length} to find)</span>
-            </label>
+          {/* Step 2 — chord slots */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm font-medium">
+                Step {hasKey ? 2 : 1} · The chord progression
+              </div>
+              <Badge variant={allLocked ? "default" : "secondary"} className={cn(allLocked && "bg-green-600")}>
+                {lockedCount}/{targets.length} chords locked
+              </Badge>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {targets.map((t, i) => (
+                <div key={i} className="flex flex-col items-center gap-1">
+                  {locked[i] ? (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-green-600 bg-green-600/10 text-2xl font-bold text-green-700 dark:text-green-400">
+                      {formatChordName(t)}
+                    </div>
+                  ) : pending[i] ? (
+                    <button
+                      onClick={() => clearSlot(i)}
+                      title="Remove this guess"
+                      className="group relative flex h-20 w-20 items-center justify-center rounded-xl border-2 border-primary bg-primary/5 text-2xl font-bold"
+                    >
+                      {guessLabel(pending[i]!.pc, pending[i]!.quality)}
+                      <X className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 rounded-full bg-background text-muted-foreground group-hover:block" />
+                    </button>
+                  ) : (
+                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed text-3xl font-bold text-muted-foreground/50">
+                      ?
+                    </div>
+                  )}
+                  <span className="text-xs text-muted-foreground">{i + 1}</span>
+                </div>
+              ))}
+            </div>
+
             <div className="flex flex-wrap items-center gap-2">
               <select className={selectClass} value={rootPick} onChange={(e) => setRootPick(e.target.value)}>
                 <option value="">Root…</option>
@@ -201,41 +242,23 @@ export const EarTrainingView = ({
                 <option value="maj">Major</option>
                 <option value="min">Minor</option>
               </select>
-              <Button size="sm" variant="outline" onClick={addChordGuess} disabled={rootPick === ""}>
-                <Plus className="mr-1 h-4 w-4" /> Add chord
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={placeChord}
+                disabled={rootPick === "" || freeSlot === -1}
+              >
+                <Plus className="mr-1 h-4 w-4" /> Place in slot {freeSlot === -1 ? "—" : freeSlot + 1}
               </Button>
             </div>
-
-            {chordGuesses.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {chordGuesses.map((g, i) => (
-                  <span
-                    key={`${g.pc}-${g.quality}`}
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-lg border px-3 py-1 text-sm font-semibold",
-                      checked
-                        ? checked.chordResults[i]
-                          ? "border-green-600 bg-green-600/10 text-green-700 dark:text-green-400"
-                          : "border-destructive bg-destructive/10 text-destructive"
-                        : "bg-muted/40",
-                    )}
-                  >
-                    {guessLabel(g.pc, g.quality)}
-                    {checked && (checked.chordResults[i] ? " ✓" : " ✗")}
-                    <button onClick={() => removeChordGuess(i)} aria-label="Remove guess">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
 
+          {/* Actions */}
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={checkAnswers} disabled={chordGuesses.length === 0 && !keyGuess}>
+            <Button onClick={checkAnswers} disabled={!canCheck}>
               Check answers
             </Button>
-            {hasKey && !keyRevealed && (
+            {hasKey && !keyKnown && (
               <Button variant="outline" size="sm" onClick={() => setKeyRevealed(true)}>
                 <Lightbulb className="mr-1 h-4 w-4" /> Hint: reveal the key
               </Button>
@@ -253,36 +276,37 @@ export const EarTrainingView = ({
             </p>
           )}
 
-          {checked && (
-            <div
-              className={cn(
-                "rounded-lg border p-4 text-sm",
-                perfect ? "border-green-600 bg-green-600/10" : "bg-muted/40",
-              )}
-            >
-              {perfect ? (
-                <p className="font-semibold">
-                  🎉 Perfect ear! You nailed {hasKey ? "the key and " : ""}all {checked.total} main
-                  chords.
-                </p>
-              ) : allFoundWithExtras ? (
-                <p>
-                  You found all <span className="font-bold">{checked.total}</span> main chords
-                  {hasKey && checked.keyCorrect === false && " (the key isn't right yet)"} — but
-                  some of your guesses aren't in the song. Remove the ✗ ones for a perfect score!
-                </p>
-              ) : (
-                <p>
-                  You've found <span className="font-bold">{checked.found}</span> of the{" "}
-                  <span className="font-bold">{checked.total}</span> main chords
-                  {hasKey && checked.keyCorrect === true && " — and the key is right"}
-                  {hasKey && checked.keyCorrect === false && " — the key isn't right yet"}. Keep
-                  listening!
-                </p>
-              )}
+          {/* Feedback */}
+          {won ? (
+            <div className="rounded-lg border border-green-600 bg-green-600/10 p-4 text-sm">
+              <p className="font-semibold">
+                🎉 You did it! {hasKey ? "Key and all" : "All"} {targets.length} chords locked in.
+                That's a trained ear.
+              </p>
             </div>
-          )}
+          ) : lastCheck ? (
+            <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+              <p>
+                {lastCheck.newlyLocked > 0 && (
+                  <>
+                    🔒 <span className="font-bold">{lastCheck.newlyLocked}</span> chord
+                    {lastCheck.newlyLocked > 1 ? "s" : ""} locked in!{" "}
+                  </>
+                )}
+                {lastCheck.wrong > 0 && (
+                  <>
+                    <span className="font-bold">{lastCheck.wrong}</span> guess
+                    {lastCheck.wrong > 1 ? "es weren't" : " wasn't"} in the song — they've been
+                    cleared.{" "}
+                  </>
+                )}
+                {lastCheck.newlyLocked === 0 && lastCheck.wrong === 0 && "Nothing new to check. "}
+                Keep listening! 🎧
+              </p>
+            </div>
+          ) : null}
 
+          {/* Key helper */}
           {keyKnown && (
             <div className="space-y-2">
               <Button variant="outline" size="sm" onClick={() => setShowDiatonic(!showDiatonic)}>

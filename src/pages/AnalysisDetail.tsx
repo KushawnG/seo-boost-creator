@@ -22,6 +22,7 @@ import { type Instrument, hasDiagram } from "@/lib/chord-shapes";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
 import { EarTrainingView } from "@/components/analysis/EarTrainingView";
+import { EarTrainingToggle } from "@/components/EarTrainingToggle";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -59,9 +60,10 @@ const AnalysisDetail = () => {
   const diagramsUnlocked = isPaid || isDemo;
 
   // Ear Training Mode (Pro/Premium): hide the answers and quiz the user instead.
+  // Re-arm the quiz when switching songs or flipping the mode back on.
   const [earMode] = useEarTrainingMode();
   const [earRevealed, setEarRevealed] = useState(false);
-  useEffect(() => setEarRevealed(false), [id]);
+  useEffect(() => setEarRevealed(false), [id, earMode]);
 
   const [instrument, setInstrument] = useState<Instrument>(
     () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',
@@ -204,10 +206,13 @@ const AnalysisDetail = () => {
 
   return (
     <PageShell title={analysis.title}>
-      <div className="mb-6 flex flex-wrap items-center gap-2">
-        {analysis.key && <Badge className="text-sm">Key: {analysis.key}</Badge>}
-        {analysis.bpm && <Badge className="text-sm">{analysis.bpm} BPM</Badge>}
-        {analysis.time_signature && <Badge className="text-sm">{analysis.time_signature}</Badge>}
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {analysis.key && <Badge className="text-sm">Key: {analysis.key}</Badge>}
+          {analysis.bpm && <Badge className="text-sm">{analysis.bpm} BPM</Badge>}
+          {analysis.time_signature && <Badge className="text-sm">{analysis.time_signature}</Badge>}
+        </div>
+        <EarTrainingToggle />
       </div>
 
       {isDemo && !isPaid && (

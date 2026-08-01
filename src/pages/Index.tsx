@@ -2,7 +2,7 @@ import { Hero } from "@/components/Hero";
 import { Navigation } from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Music, Zap, Clock, Lock } from "lucide-react";
+import { Music, Zap, Clock, Ear } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "@/components/BrandLogo";
 
@@ -33,9 +33,9 @@ const Index = () => {
               <p className="text-muted-foreground">Follow the chord changes in real time as the song plays</p>
             </Card>
             <Card className="p-6">
-              <Lock className="h-12 w-12 text-primary mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Secure Storage</h3>
-              <p className="text-muted-foreground">Your music files are safe with us</p>
+              <Ear className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Ear Training Mode</h3>
+              <p className="text-muted-foreground">Flip the switch and test yourself — guess the key and chords by ear, then check your answers</p>
             </Card>
           </div>
         </div>
