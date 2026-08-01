@@ -59,6 +59,8 @@ export const EarTrainingView = ({
   const [lastCheck, setLastCheck] = useState<{ newlyLocked: number; wrong: number } | null>(null);
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [firstChordRevealed, setFirstChordRevealed] = useState(false);
+  const [qualitiesRevealed, setQualitiesRevealed] = useState(false);
+  const [hintLog, setHintLog] = useState<string[]>([]);
   const [showDiatonic, setShowDiatonic] = useState(false);
 
   const lockedCount = locked.filter(Boolean).length;
@@ -115,6 +117,61 @@ export const EarTrainingView = ({
   };
 
   const canCheck = pending.some((p) => p !== null) || (!!keyGuess && keyResult === null);
+
+  // Progressive hints: one button that escalates. Each press gives the next
+  // most useful nudge, and the last chord is never given away.
+  const qualityCounts = useMemo(() => {
+    let maj = 0;
+    let min = 0;
+    for (const t of targets) {
+      const quality = t.endsWith(":min") ? "min" : t.endsWith(":maj") ? "maj" : null;
+      if (quality === "maj") maj++;
+      if (quality === "min") min++;
+    }
+    return { maj, min };
+  }, [targets]);
+
+  const nextHintAvailable =
+    (hasKey && !keyKnown) ||
+    (!!opening && !firstChordRevealed) ||
+    !qualitiesRevealed ||
+    locked.filter((l) => !l).length >= 2;
+
+  const takeHint = () => {
+    if (hasKey && !keyKnown) {
+      setKeyRevealed(true);
+      setHintLog([...hintLog, `The key is ${analysis.key}.`]);
+      return;
+    }
+    if (opening && !firstChordRevealed) {
+      setFirstChordRevealed(true);
+      setHintLog([...hintLog, `The song opens on ${formatChordName(opening)}.`]);
+      return;
+    }
+    if (!qualitiesRevealed) {
+      setQualitiesRevealed(true);
+      setHintLog([
+        ...hintLog,
+        `The progression has ${qualityCounts.maj} major and ${qualityCounts.min} minor chord${qualityCounts.min === 1 ? "" : "s"}.`,
+      ]);
+      return;
+    }
+    // Last resort: lock one unsolved chord — but never the final one.
+    const unlockedIdxs = locked.map((l, i) => (l ? -1 : i)).filter((i) => i >= 0);
+    if (unlockedIdxs.length >= 2) {
+      const idx = unlockedIdxs[0];
+      const nextLocked = [...locked];
+      nextLocked[idx] = true;
+      setLocked(nextLocked);
+      const nextPending = [...pending];
+      nextPending[idx] = null;
+      setPending(nextPending);
+      setHintLog([
+        ...hintLog,
+        `Chord ${idx + 1} is ${formatChordName(targets[idx])} — locked it in for you. The last one's all yours!`,
+      ]);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -258,22 +315,22 @@ export const EarTrainingView = ({
             <Button onClick={checkAnswers} disabled={!canCheck}>
               Check answers
             </Button>
-            {hasKey && !keyKnown && (
-              <Button variant="outline" size="sm" onClick={() => setKeyRevealed(true)}>
-                <Lightbulb className="mr-1 h-4 w-4" /> Hint: reveal the key
-              </Button>
-            )}
-            {opening && !firstChordRevealed && (
-              <Button variant="outline" size="sm" onClick={() => setFirstChordRevealed(true)}>
-                <Lightbulb className="mr-1 h-4 w-4" /> Hint: first chord
+            {!won && nextHintAvailable && (
+              <Button variant="outline" size="sm" onClick={takeHint}>
+                <Lightbulb className="mr-1 h-4 w-4" />
+                {hintLog.length === 0 ? "Hint" : "Another hint"}
               </Button>
             )}
           </div>
 
-          {firstChordRevealed && opening && (
-            <p className="text-sm">
-              The song opens on <span className="font-bold">{formatChordName(opening)}</span>.
-            </p>
+          {hintLog.length > 0 && (
+            <div className="space-y-1 rounded-lg border border-amber-300/50 bg-amber-500/5 p-3">
+              {hintLog.map((hint, i) => (
+                <p key={i} className="text-sm">
+                  💡 {hint}
+                </p>
+              ))}
+            </div>
           )}
 
           {/* Feedback */}

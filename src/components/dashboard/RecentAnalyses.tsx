@@ -6,11 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import { Loader2, Play } from "lucide-react";
 import { formatChordName } from "@/lib/chords";
+import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
 import { cn } from "@/lib/utils";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
 export const RecentAnalyses = () => {
+  const [earMode] = useEarTrainingMode();
   const { data: analyses, isLoading } = useQuery({
     queryKey: ['recent-analyses'],
     queryFn: async () => {
@@ -78,6 +80,17 @@ export const RecentAnalyses = () => {
               )}
 
               {analysis.status === 'completed' && (
+                earMode ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      🎧 Ear Training is on — key and chords stay hidden until you play it.
+                    </p>
+                    <div className="flex items-center gap-2 pt-2 text-sm font-medium text-primary">
+                      <Play className="h-4 w-4" />
+                      Play it by ear
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Key:</span>
@@ -102,6 +115,7 @@ export const RecentAnalyses = () => {
                     View synced chords
                   </div>
                 </div>
+                )
               )}
             </CardContent>
           </Card>

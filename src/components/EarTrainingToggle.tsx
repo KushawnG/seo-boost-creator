@@ -14,7 +14,9 @@ export function EarTrainingToggle({ onUpsell }: { onUpsell?: () => void }) {
   const [enabled, setEnabled] = useEarTrainingMode();
 
   const handleChange = (next: boolean) => {
-    if (!isPaid) {
+    // Free users may always turn the mode OFF (it can arrive pre-set from the
+    // landing page as a spoiler shield) — only turning it ON is gated.
+    if (next && !isPaid) {
       toast({
         title: "🎧 Ear Training is a Pro feature",
         description:
@@ -43,7 +45,7 @@ export function EarTrainingToggle({ onUpsell }: { onUpsell?: () => void }) {
           <Lock className="h-3 w-3" /> Pro
         </Badge>
       )}
-      <Switch checked={isPaid && enabled} onCheckedChange={handleChange} />
+      <Switch checked={enabled} onCheckedChange={handleChange} />
     </label>
   );
 }

@@ -16,6 +16,7 @@ import { Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { planFor } from "@/lib/plans";
 import { useSubscription } from "@/hooks/use-subscription";
+import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -27,6 +28,7 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [earMode] = useEarTrainingMode();
 
   const { data: subscription } = useSubscription();
   const historyLimit = planFor(subscription?.plan_type).historyLimit;
@@ -131,8 +133,8 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
                 )}
               </span>
             </TableCell>
-            <TableCell>{analysis.key || 'N/A'}</TableCell>
-            <TableCell>{analysis.bpm || 'N/A'}</TableCell>
+            <TableCell>{earMode ? '🎧' : (analysis.key || 'N/A')}</TableCell>
+            <TableCell>{earMode ? '🎧' : (analysis.bpm || 'N/A')}</TableCell>
             <TableCell>
               <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
                 {analysis.status}

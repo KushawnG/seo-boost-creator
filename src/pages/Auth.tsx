@@ -24,6 +24,8 @@ const Auth = () => {
     typeof window !== "undefined"
       ? localStorage.getItem("pendingAnalysis") || localStorage.getItem("pendingAnalysisFile")
       : null;
+  const earIntent =
+    typeof window !== "undefined" && localStorage.getItem("ear-training-mode") === "1";
 
   const [mode, setMode] = useState<Mode>(
     searchParams.get("signup") === "true" || !!pendingSong ? "signup" : "signin",
@@ -141,11 +143,23 @@ const Auth = () => {
 
         {pendingSong && (mode === "signup" || mode === "signin") && (
           <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 text-center">
-            <p className="text-sm font-semibold">🎵 One quick step to see your song's chords</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Sign {mode === "signup" ? "up free" : "in"} to get the chords, key &amp; BPM for the song
-              you entered — synced to the music, then it's ready in your dashboard.
-            </p>
+            {earIntent ? (
+              <>
+                <p className="text-sm font-semibold">🎧 One quick step to train your ear</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Sign {mode === "signup" ? "up free" : "in"} and we'll analyze your song — the
+                  chords stay <strong>hidden</strong> so you can work them out by ear first.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold">🎵 One quick step to see your song's chords</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Sign {mode === "signup" ? "up free" : "in"} to get the chords, key &amp; BPM for the song
+                  you entered — synced to the music, then it's ready in your dashboard.
+                </p>
+              </>
+            )}
           </div>
         )}
 

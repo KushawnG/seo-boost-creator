@@ -199,6 +199,37 @@ const AnalysisDetail = () => {
     );
   }
 
+  // Free user who asked for ear training (e.g. from the landing page): keep the
+  // song unspoiled and offer the upgrade — or let them reveal if they'd rather.
+  if (earMode && !isPaid && !earRevealed) {
+    return (
+      <PageShell title={analysis.title}>
+        <Card className="mx-auto max-w-xl">
+          <CardContent className="space-y-4 p-8 text-center">
+            <div className="text-4xl">🎧</div>
+            <h2 className="text-xl font-bold">This song is unspoiled</h2>
+            <p className="text-sm text-muted-foreground">
+              The chords, key and BPM are ready — but hidden, so you can work them out by ear.
+              Ear Training Mode (guess the chords, check your answers, get hints) is a Pro &amp;
+              Premium feature.
+            </p>
+            <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+              <Link to="/dashboard?tab=billing">
+                <Button>Upgrade to play it by ear</Button>
+              </Link>
+              <Button variant="outline" onClick={() => setEarRevealed(true)}>
+                Reveal the chords instead
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Revealing only affects this song — Ear Training stays on for the rest.
+            </p>
+          </CardContent>
+        </Card>
+      </PageShell>
+    );
+  }
+
   const currentChord = chordIdx >= 0 ? timeline[chordIdx] : null;
   const nextChordSpan = timeline
     .slice(chordIdx >= 0 ? chordIdx + 1 : 0)

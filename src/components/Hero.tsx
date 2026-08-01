@@ -5,24 +5,29 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { BrandLogo } from "@/components/BrandLogo";
+import { setEarTrainingMode } from "@/hooks/use-ear-training-mode";
+import { Ear } from "lucide-react";
 
 export const Hero = () => {
   const [url, setUrl] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
-  
-  const handleAnalyze = async () => {
+
+  // "analyze" shows the results as usual; "ear" keeps the chords hidden after
+  // signup so the song can be played by ear (Ear Training Mode pre-armed).
+  const handleAnalyze = async (intent: "analyze" | "ear" = "analyze") => {
     if (url) {
       localStorage.setItem('pendingAnalysis', url);
     }
-    
+    setEarTrainingMode(intent === "ear");
+
     const { data: { session } } = await supabase.auth.getSession();
-    
+
     if (!session) {
       navigate("/auth");
       return;
     }
-    
+
     navigate("/dashboard");
   };
 
@@ -108,12 +113,26 @@ export const Hero = () => {
             />
           </Button>
           
-          <Button 
-            className="w-full"
-            onClick={handleAnalyze}
-          >
-            Analyze
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              className="w-full"
+              onClick={() => handleAnalyze("analyze")}
+            >
+              Analyze — show me the chords
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => handleAnalyze("ear")}
+            >
+              <Ear className="mr-2 h-4 w-4" />
+              Ear Training — I'll guess them
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ear Training keeps the chords hidden so you can work them out by ear first. (Pro
+            feature — your song stays unspoiled either way.)
+          </p>
         </div>
       </div>
     </div>
