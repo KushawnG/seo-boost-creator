@@ -1,4 +1,4 @@
-import { Innertube } from 'npm:youtubei.js@13';
+import { Innertube } from 'npm:youtubei.js@17';
 
 // All plans support songs up to 5 minutes (Klangio Startup's hard cap is
 // 300s); the slack covers metadata rounding.
@@ -19,12 +19,20 @@ export interface YouTubeAudio {
   extension: 'm4a' | 'mp3';
 }
 
-const APIFY_ACTOR = 'quiet_silicon~youtube-mp3-downloader';
+// Switched from quiet_silicon~youtube-mp3-downloader 2026-08-02: that actor's
+// proxy infrastructure broke (every run returned "Connection refused").
+const APIFY_ACTOR = 'lurkapi~youtube-to-mp3-audio-downloader';
 
-// Paid fallback for videos YouTube blocks from server IPs (label-protected
-// content). Costs ~ $0.06 per download, so it only runs after every free
-// client has failed. Returns null when unconfigured or unsuccessful.
-async function fetchViaApify(videoId: string): Promise<Blob | null> {
+interface ApifyResult {
+  blob: Blob;
+  title?: string;
+  duration?: number;
+}
+
+// Paid fallback for videos YouTube blocks from server IPs (which as of
+// mid-2026 is most of them). Costs cents per download, so it only runs after
+// every free client has failed. Returns null when unconfigured or failed.
+async function fetchViaApify(videoId: string): Promise<ApifyResult | null> {
   const token = Deno.env.get('APIFY_TOKEN');
   if (!token) return null;
 
@@ -34,7 +42,7 @@ async function fetchViaApify(videoId: string): Promise<Blob | null> {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `https://www.youtube.com/watch?v=${videoId}` }),
+        body: JSON.stringify({ videoUrls: [`https://www.youtube.com/watch?v=${videoId}`] }),
       },
     );
     if (!response.ok) {
@@ -44,12 +52,13 @@ async function fetchViaApify(videoId: string): Promise<Blob | null> {
 
     const items = await response.json();
     const item = Array.isArray(items) ? items[0] : null;
-    if (!item?.success || !item.file_url) {
-      console.warn('Apify returned no file:', JSON.stringify(item).slice(0, 200));
+    if (item?.status !== 'Success' || !item.audioFileUrl) {
+      console.warn('Apify returned no file:', JSON.stringify(item).slice(0, 300));
       return null;
     }
 
-    const download = await fetch(item.file_url);
+    // The audio lands in the run's key-value store — authenticate the download
+    const download = await fetch(`${item.audioFileUrl}?token=${token}`);
     if (!download.ok) {
       console.warn('Apify file download failed:', download.status);
       return null;
@@ -58,7 +67,11 @@ async function fetchViaApify(videoId: string): Promise<Blob | null> {
     if (buffer.byteLength === 0) return null;
 
     console.log('YouTube audio fetched via Apify:', { videoId, bytes: buffer.byteLength });
-    return new Blob([buffer], { type: 'audio/mpeg' });
+    return {
+      blob: new Blob([buffer], { type: 'audio/mpeg' }),
+      title: typeof item.title === 'string' ? item.title : undefined,
+      duration: typeof item.duration === 'number' ? item.duration : undefined,
+    };
   } catch (error) {
     console.warn('Apify fallback error:', error instanceof Error ? error.message : String(error));
     return null;
@@ -93,9 +106,21 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     fetch: nativeFetch,
   });
 
-  const info = await yt.getBasicInfo(videoId);
-  let title = info.basic_info.title ?? '';
-  const duration = info.basic_info.duration ?? 0;
+  // Metadata is best-effort: when YouTube rejects the /player call outright
+  // (they rotate their private API), we must still reach the download attempts
+  // and the Apify fallback below rather than dying here.
+  let title = '';
+  let duration = 0;
+  try {
+    const info = await yt.getBasicInfo(videoId);
+    title = info.basic_info.title ?? '';
+    duration = info.basic_info.duration ?? 0;
+  } catch (error) {
+    console.warn(
+      'getBasicInfo failed (continuing without metadata):',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
 
   // Protected videos withhold the title from Innertube; oEmbed still has it
   if (!title) {
@@ -115,6 +140,7 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   }
   if (!title) title = 'YouTube video';
 
+  // duration is 0 when metadata failed — Klangio enforces its own cap then
   if (duration > MAX_DURATION_SECONDS) {
     throw new Error(
       `This video is ${Math.ceil(duration / 60)} minutes long — songs up to 5 minutes are supported. Please use a shorter video or upload a trimmed audio file.`,
@@ -153,9 +179,17 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   }
 
   console.warn('All direct clients failed, trying Apify fallback:', lastError?.message);
-  const apifyBlob = await fetchViaApify(videoId);
-  if (apifyBlob) {
-    return { blob: apifyBlob, title, duration, extension: 'mp3' };
+  const apify = await fetchViaApify(videoId);
+  if (apify) {
+    // Backfill metadata the blocked Innertube call couldn't provide
+    const finalTitle = title && title !== 'YouTube video' ? title : (apify.title ?? title);
+    const finalDuration = duration || (apify.duration ?? 0);
+    if (finalDuration > MAX_DURATION_SECONDS) {
+      throw new Error(
+        `This video is ${Math.ceil(finalDuration / 60)} minutes long — songs up to 5 minutes are supported. Please use a shorter video or upload a trimmed audio file.`,
+      );
+    }
+    return { blob: apify.blob, title: finalTitle, duration: finalDuration, extension: 'mp3' };
   }
 
   // "Login required" is YouTube shielding label/copyright-protected content
