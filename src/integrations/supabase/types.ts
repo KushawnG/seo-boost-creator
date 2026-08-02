@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      practice_goals: {
+        Row: {
+          goal_days: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          goal_days?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          goal_days?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      practice_log: {
+        Row: {
+          created_at: string
+          day: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          day: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       public_songs: {
         Row: {
           artist: string | null

@@ -21,6 +21,7 @@ import {
 import { type Instrument, hasDiagram } from "@/lib/chord-shapes";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
+import { logPractice } from "@/lib/practice";
 import { EarTrainingView } from "@/components/analysis/EarTrainingView";
 import { EarTrainingToggle } from "@/components/EarTrainingToggle";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +65,11 @@ const AnalysisDetail = () => {
   const [earMode] = useEarTrainingMode();
   const [earRevealed, setEarRevealed] = useState(false);
   useEffect(() => setEarRevealed(false), [id, earMode]);
+
+  // Opening a song to play along counts as a practice day
+  useEffect(() => {
+    if (analysis?.status === "completed") void logPractice();
+  }, [analysis?.id, analysis?.status]);
 
   const [instrument, setInstrument] = useState<Instrument>(
     () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',

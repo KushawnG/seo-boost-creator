@@ -19,6 +19,7 @@ import {
 } from "@/lib/ear-training";
 import { YouTubePlayer } from "@/components/analysis/YouTubePlayer";
 import { EarTrainingToggle } from "@/components/EarTrainingToggle";
+import { logPractice } from "@/lib/practice";
 import { cn } from "@/lib/utils";
 
 type Analysis = Database["public"]["Tables"]["song_analysis"]["Row"];
@@ -76,6 +77,11 @@ export const EarTrainingView = ({
   useEffect(() => {
     audioRef.current?.play().catch(() => {});
   }, [audioUrl]);
+
+  // Winning an ear-training round counts as a practice day
+  useEffect(() => {
+    if (won) void logPractice();
+  }, [won]);
 
   const freeSlot = pending.findIndex((p, i) => !locked[i] && p === null);
 

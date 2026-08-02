@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AnalysisForm } from "@/components/dashboard/AnalysisForm";
 import { RecentAnalyses } from "@/components/dashboard/RecentAnalyses";
+import { PracticeStreakCard } from "@/components/dashboard/PracticeStreakCard";
 
 export const HomeTab = () => {
   return (
@@ -11,6 +12,8 @@ export const HomeTab = () => {
           <AnalysisForm />
         </CardContent>
       </Card>
+
+      <PracticeStreakCard />
 
       <RecentAnalyses />
     </div>

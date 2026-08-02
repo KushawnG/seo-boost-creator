@@ -8,6 +8,7 @@ import { extractYouTubeId } from "@/lib/youtube";
 import { MAX_SONG_SECONDS } from "@/lib/plans";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Upload } from "lucide-react";
+import { logPractice } from "@/lib/practice";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MIN_DURATION = 5; // seconds, Klangio API requirement
@@ -96,6 +97,7 @@ export const AnalysisForm = () => {
 
   const startAnalysis = async (analysisId: string) => {
     setActiveAnalysisId(analysisId);
+    void logPractice(); // analyzing a song counts as a practice day
     queryClient.invalidateQueries({ queryKey: ['recent-analyses'] });
 
     const { data, error } = await supabase.functions.invoke('analyze-song', {

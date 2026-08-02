@@ -33,6 +33,13 @@ const Dashboard = () => {
     const t = new URLSearchParams(window.location.search).get("tab");
     return NAV_ITEMS.some((n) => n.id === t) ? (t as TabId) : "home";
   });
+
+  // Follow ?tab= changes from in-app links (e.g. upsell cards) after mount too
+  const [routeParams] = useSearchParams();
+  useEffect(() => {
+    const t = routeParams.get("tab");
+    if (t && NAV_ITEMS.some((n) => n.id === t)) setActiveTab(t as TabId);
+  }, [routeParams]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
