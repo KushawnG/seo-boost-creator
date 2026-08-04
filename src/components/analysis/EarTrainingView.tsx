@@ -8,11 +8,9 @@ import { type ChordSpan, formatChordName } from "@/lib/chords";
 import {
   type ChordQuality,
   KEY_GUESS_OPTIONS,
-  ROOT_GUESS_OPTIONS,
   chordGuessMatch,
   diatonicChords,
   firstChord,
-  guessLabel,
   keyGuessCorrect,
   mainChords,
   parseKey,
@@ -27,7 +25,15 @@ type Analysis = Database["public"]["Tables"]["song_analysis"]["Row"];
 interface ChordGuess {
   pc: number;
   quality: ChordQuality;
+  label: string; // the user's own spelling, e.g. "Bb" not "A#"
 }
+
+// Build-a-chord picker: note letter -> accidental -> quality
+type Accidental = "natural" | "sharp" | "flat";
+const LETTER_PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const NOTE_LETTERS = ["A", "B", "C", "D", "E", "F", "G"] as const;
+const ACCIDENTAL_OFFSET: Record<Accidental, number> = { natural: 0, sharp: 1, flat: -1 };
+const ACCIDENTAL_SUFFIX: Record<Accidental, string> = { natural: "", sharp: "#", flat: "b" };
 
 const selectClass =
   "h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -52,7 +58,8 @@ export const EarTrainingView = ({
 
   const [keyGuess, setKeyGuess] = useState("");
   const [keyResult, setKeyResult] = useState<boolean | null>(null); // null = unchecked
-  const [rootPick, setRootPick] = useState("");
+  const [letterPick, setLetterPick] = useState<string>("");
+  const [accidentalPick, setAccidentalPick] = useState<Accidental>("natural");
   const [qualityPick, setQualityPick] = useState<ChordQuality>("maj");
   // One slot per target chord: locked (solved) or holding a pending guess.
   const [locked, setLocked] = useState<boolean[]>(() => targets.map(() => false));
@@ -85,11 +92,22 @@ export const EarTrainingView = ({
 
   const freeSlot = pending.findIndex((p, i) => !locked[i] && p === null);
 
+  const pickedChord: ChordGuess | null =
+    letterPick === ""
+      ? null
+      : {
+          pc: (((LETTER_PC[letterPick] + ACCIDENTAL_OFFSET[accidentalPick]) % 12) + 12) % 12,
+          quality: qualityPick,
+          label:
+            letterPick +
+            ACCIDENTAL_SUFFIX[accidentalPick] +
+            (qualityPick === "min" ? "m" : ""),
+        };
+
   const placeChord = () => {
-    if (rootPick === "" || freeSlot === -1) return;
-    const guess = { pc: Number(rootPick), quality: qualityPick };
+    if (!pickedChord || freeSlot === -1) return;
     const next = [...pending];
-    next[freeSlot] = guess;
+    next[freeSlot] = pickedChord;
     setPending(next);
     setLastCheck(null);
   };
@@ -278,7 +296,7 @@ export const EarTrainingView = ({
                       title="Remove this guess"
                       className="group relative flex h-20 w-20 items-center justify-center rounded-xl border-2 border-primary bg-primary/5 text-2xl font-bold"
                     >
-                      {guessLabel(pending[i]!.pc, pending[i]!.quality)}
+                      {pending[i]!.label}
                       <X className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 rounded-full bg-background text-muted-foreground group-hover:block" />
                     </button>
                   ) : (
@@ -291,31 +309,79 @@ export const EarTrainingView = ({
               ))}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <select className={selectClass} value={rootPick} onChange={(e) => setRootPick(e.target.value)}>
-                <option value="">Root…</option>
-                {ROOT_GUESS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
+            {/* Build a chord: note -> accidental -> quality, then place it */}
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-16 text-xs text-muted-foreground">Note</span>
+                {NOTE_LETTERS.map((letter) => (
+                  <Button
+                    key={letter}
+                    size="sm"
+                    variant={letterPick === letter ? "default" : "outline"}
+                    className="h-9 w-9 p-0 text-base font-bold"
+                    onClick={() => setLetterPick(letterPick === letter ? "" : letter)}
+                  >
+                    {letter}
+                  </Button>
                 ))}
-              </select>
-              <select
-                className={selectClass}
-                value={qualityPick}
-                onChange={(e) => setQualityPick(e.target.value as ChordQuality)}
-              >
-                <option value="maj">Major</option>
-                <option value="min">Minor</option>
-              </select>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={placeChord}
-                disabled={rootPick === "" || freeSlot === -1}
-              >
-                <Plus className="mr-1 h-4 w-4" /> Place in slot {freeSlot === -1 ? "—" : freeSlot + 1}
-              </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-16 text-xs text-muted-foreground">Accidental</span>
+                {(
+                  [
+                    { id: "natural", label: "♮" },
+                    { id: "sharp", label: "♯" },
+                    { id: "flat", label: "♭" },
+                  ] as { id: Accidental; label: string }[]
+                ).map(({ id, label }) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant={accidentalPick === id ? "default" : "outline"}
+                    className="h-9 w-9 p-0 text-lg"
+                    title={id}
+                    onClick={() => setAccidentalPick(id)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="w-16 text-xs text-muted-foreground">Quality</span>
+                {(
+                  [
+                    { id: "maj", label: "Major" },
+                    { id: "min", label: "Minor" },
+                  ] as { id: ChordQuality; label: string }[]
+                ).map(({ id, label }) => (
+                  <Button
+                    key={id}
+                    size="sm"
+                    variant={qualityPick === id ? "default" : "outline"}
+                    className="h-9 px-4"
+                    onClick={() => setQualityPick(id)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3 pt-1">
+                <span
+                  className={cn(
+                    "flex h-10 min-w-14 items-center justify-center rounded-lg border px-3 text-xl font-bold",
+                    pickedChord ? "bg-background" : "border-dashed text-muted-foreground/40",
+                  )}
+                >
+                  {pickedChord?.label ?? "?"}
+                </span>
+                <Button
+                  size="sm"
+                  onClick={placeChord}
+                  disabled={!pickedChord || freeSlot === -1}
+                >
+                  <Plus className="mr-1 h-4 w-4" /> Place in slot {freeSlot === -1 ? "—" : freeSlot + 1}
+                </Button>
+              </div>
             </div>
           </div>
 
