@@ -17,7 +17,10 @@ import {
   chordIndexAt,
   formatChordName,
   isNoChord,
+  transposeChord,
+  transposeKey,
 } from "@/lib/chords";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { type Instrument, hasDiagram } from "@/lib/chord-shapes";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
@@ -116,6 +119,21 @@ const AnalysisDetail = () => {
   const youtubeRef = useRef<PlayerHandle>(null);
   const stripRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
+
+  // Practice controls: slow the song down, and shift every chord to your key.
+  const [speed, setSpeed] = useState(1);
+  const [semitones, setSemitones] = useState(0);
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.playbackRate = speed;
+    // keep the pitch when slowed (default in modern browsers, set to be safe)
+    try { (el as HTMLAudioElement & { preservesPitch: boolean }).preservesPitch = true; } catch { /* noop */ }
+  }, [speed, audioUrl]);
+  const tc = useCallback(
+    (chord: string) => (semitones === 0 ? chord : transposeChord(chord, semitones)),
+    [semitones],
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -243,13 +261,72 @@ const AnalysisDetail = () => {
 
   return (
     <PageShell title={analysis.title}>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {analysis.key && <Badge className="text-sm">Key: {analysis.key}</Badge>}
+          {analysis.key && (
+            <Badge className="text-sm">
+              Key: {semitones === 0 ? analysis.key : transposeKey(analysis.key, semitones)}
+            </Badge>
+          )}
           {analysis.bpm && <Badge className="text-sm">{analysis.bpm} BPM</Badge>}
           {analysis.time_signature && <Badge className="text-sm">{analysis.time_signature}</Badge>}
         </div>
         <EarTrainingToggle />
+      </div>
+
+      {/* Practice controls */}
+      <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+        {analysis.file_path && (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Speed</span>
+            <select
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value={0.5}>0.5×</option>
+              <option value={0.75}>0.75×</option>
+              <option value={1}>1× (normal)</option>
+              <option value={1.25}>1.25×</option>
+            </select>
+          </label>
+        )}
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">Transpose</span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Transpose down"
+            onClick={() => setSemitones((s) => Math.max(s - 1, -11))}
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
+          <span className="w-8 text-center font-semibold tabular-nums">
+            {semitones > 0 ? `+${semitones}` : semitones}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            aria-label="Transpose up"
+            onClick={() => setSemitones((s) => Math.min(s + 1, 11))}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          {semitones !== 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Reset transpose"
+              title="Back to the original key"
+              onClick={() => setSemitones(0)}
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {isDemo && !isPaid && (
@@ -278,16 +355,23 @@ const AnalysisDetail = () => {
         {/* Player */}
         <Card>
           <CardContent className="p-4">
-            {analysis.youtube_id ? (
-              <YouTubePlayer ref={youtubeRef} videoId={analysis.youtube_id} />
-            ) : audioUrl ? (
-              <div className="flex h-full min-h-[120px] flex-col justify-center gap-3">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Music className="h-5 w-5" />
-                  <span className="truncate">{analysis.title}</span>
+            {/* Prefer the stored audio (enables speed control) over the YouTube embed */}
+            {analysis.file_path ? (
+              audioUrl ? (
+                <div className="flex h-full min-h-[120px] flex-col justify-center gap-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Music className="h-5 w-5" />
+                    <span className="truncate">{analysis.title}</span>
+                  </div>
+                  <audio ref={audioRef} src={audioUrl} controls className="w-full" />
                 </div>
-                <audio ref={audioRef} src={audioUrl} controls className="w-full" />
-              </div>
+              ) : (
+                <div className="flex min-h-[120px] items-center justify-center text-muted-foreground">
+                  Loading audio...
+                </div>
+              )
+            ) : analysis.youtube_id ? (
+              <YouTubePlayer ref={youtubeRef} videoId={analysis.youtube_id} />
             ) : (
               <div className="flex min-h-[120px] items-center justify-center text-muted-foreground">
                 Loading audio...
@@ -323,19 +407,26 @@ const AnalysisDetail = () => {
                 ))}
               </div>
             </div>
-            <div className="text-6xl font-bold tabular-nums">
-              {currentChord ? formatChordName(currentChord[2]) : '—'}
+            <div
+              className={cn(
+                "font-bold tabular-nums",
+                currentChord && isNoChord(currentChord[2])
+                  ? "text-4xl text-muted-foreground/60"
+                  : "text-6xl",
+              )}
+            >
+              {currentChord ? formatChordName(tc(currentChord[2])) : '—'}
             </div>
-            {instrument !== 'off' && diagramsUnlocked && currentChord && hasDiagram(currentChord[2]) && (
+            {instrument !== 'off' && diagramsUnlocked && currentChord && hasDiagram(tc(currentChord[2])) && (
               instrument === 'guitar' ? (
-                <GuitarChordDiagram chord={currentChord[2]} className="h-28 w-auto" />
+                <GuitarChordDiagram chord={tc(currentChord[2])} className="h-28 w-auto" />
               ) : (
-                <PianoChordDiagram chord={currentChord[2]} className="h-16 w-auto" />
+                <PianoChordDiagram chord={tc(currentChord[2])} className="h-16 w-auto" />
               )
             )}
             {nextChordSpan && (
               <div className="text-muted-foreground">
-                Next: <span className="font-semibold text-foreground">{formatChordName(nextChordSpan[2])}</span>
+                Next: <span className="font-semibold text-foreground">{formatChordName(tc(nextChordSpan[2]))}</span>
               </div>
             )}
             {beats.length > 0 && (
@@ -385,7 +476,7 @@ const AnalysisDetail = () => {
                           : "bg-background hover:bg-accent/50",
                     )}
                   >
-                    <span className="text-lg font-semibold">{formatChordName(name)}</span>
+                    <span className="text-lg font-semibold">{formatChordName(tc(name))}</span>
                     <span className={cn("text-xs", idx === chordIdx ? "text-primary-foreground/80" : "text-muted-foreground/60")}>
                       {formatTime(start)}
                     </span>
@@ -405,7 +496,7 @@ const AnalysisDetail = () => {
             {analysis.chords && analysis.chords.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {analysis.chords.map((chord) => (
-                  <Badge key={chord} variant="outline">{formatChordName(chord)}</Badge>
+                  <Badge key={chord} variant="outline">{formatChordName(tc(chord))}</Badge>
                 ))}
               </div>
             )}
@@ -421,7 +512,7 @@ const AnalysisDetail = () => {
             <div className="flex flex-wrap gap-2">
               {analysis.chords.map((chord) => (
                 <Badge key={chord} variant="outline" className="text-sm">
-                  {formatChordName(chord)}
+                  {formatChordName(tc(chord))}
                 </Badge>
               ))}
             </div>

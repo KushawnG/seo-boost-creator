@@ -75,10 +75,10 @@ export const Hero = () => {
           Chord Finder AI
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Find the key, bpm and chords of any song.
+          Find the key, BPM and chords of any song — synced to the music.
         </p>
         <p className="text-muted-foreground">
-          Enter the YouTube URL or input the Audio File of the song to Analyze.
+          Paste a YouTube link or upload an audio file to get started.
         </p>
         
         <div className="space-y-4 w-full max-w-md mx-auto">
@@ -132,6 +132,9 @@ export const Hero = () => {
           <p className="text-xs text-muted-foreground">
             Ear Training keeps the chords hidden so you can work them out by ear first. (Pro
             feature — your song stays unspoiled either way.)
+          </p>
+          <p className="text-sm font-medium text-muted-foreground">
+            🎸 3 songs free every month — no credit card needed.
           </p>
         </div>
       </div>

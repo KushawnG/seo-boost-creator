@@ -341,8 +341,15 @@ export const AnalysisForm = () => {
           disabled={isSubmitting}
           onClick={() => document.getElementById("dashboard-file-upload")?.click()}
         >
-          <Upload className="h-4 w-4" />
-          {isSubmitting ? "Processing..." : "Upload an audio file (MP3, WAV, M4A, AAC, OGG)"}
+          <Upload className="h-4 w-4 shrink-0" />
+          {isSubmitting ? (
+            "Processing..."
+          ) : (
+            <>
+              <span className="sm:hidden">Upload an audio file</span>
+              <span className="hidden sm:inline">Upload an audio file (MP3, WAV, M4A, AAC, OGG)</span>
+            </>
+          )}
         </Button>
         <input
           id="dashboard-file-upload"
