@@ -164,6 +164,36 @@ async function processAnalysis(
     const message = error instanceof Error ? error.message : 'Analysis failed';
     console.error('Analysis failed:', { analysisId: analysis.id, message });
     await markFailed(supabase, analysis.id, message);
+    await backfillFailedTitle(supabase, analysis);
+  }
+}
+
+// Failed YouTube analyses would otherwise sit in the dashboard titled
+// "YouTube song (fetching title...)" — oEmbed usually knows the real title
+// even when the download is blocked. Cosmetic and best-effort only.
+async function backfillFailedTitle(
+  supabase: SupabaseClient,
+  // deno-lint-ignore no-explicit-any
+  analysis: any,
+): Promise<void> {
+  if (!analysis.youtube_id) return;
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${analysis.youtube_id}&format=json`,
+    );
+    if (!res.ok) return;
+    const meta = await res.json();
+    const title = [meta.title, meta.author_name?.replace(/ - Topic$/, '')]
+      .filter(Boolean)
+      .join(' — ');
+    if (!title) return;
+    await supabase
+      .from('song_analysis')
+      .update({ title })
+      .eq('id', analysis.id)
+      .like('title', 'YouTube song%'); // never overwrite a real title
+  } catch {
+    // cosmetic only
   }
 }
 
