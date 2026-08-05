@@ -42,7 +42,12 @@ async function fetchViaApify(videoId: string): Promise<ApifyResult | null> {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ videoUrls: [`https://www.youtube.com/watch?v=${videoId}`] }),
+        body: JSON.stringify({
+          videoUrls: [`https://www.youtube.com/watch?v=${videoId}`],
+          // Datacenter proxies started getting blocked by YouTube (Aug 2026);
+          // residential costs ~cents more per download but actually works.
+          proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
+        }),
       },
     );
     if (!response.ok) {
