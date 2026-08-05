@@ -3,7 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Lightbulb, Plus, Repeat, X } from "lucide-react";
+import { Eye, Lightbulb, Repeat, X } from "lucide-react";
 import { type ChordSpan, formatChordName } from "@/lib/chords";
 import {
   type ChordQuality,
@@ -26,6 +26,8 @@ interface ChordGuess {
   pc: number;
   quality: ChordQuality;
   label: string; // the user's own spelling, e.g. "Bb" not "A#"
+  letter: string;
+  accidental: Accidental;
 }
 
 // Build-a-chord picker: note letter -> accidental -> quality
@@ -58,9 +60,9 @@ export const EarTrainingView = ({
 
   const [keyGuess, setKeyGuess] = useState("");
   const [keyResult, setKeyResult] = useState<boolean | null>(null); // null = unchecked
-  const [letterPick, setLetterPick] = useState<string>("");
   const [accidentalPick, setAccidentalPick] = useState<Accidental>("natural");
   const [qualityPick, setQualityPick] = useState<ChordQuality>("maj");
+  const [activeSlot, setActiveSlot] = useState(0);
   // One slot per target chord: locked (solved) or holding a pending guess.
   const [locked, setLocked] = useState<boolean[]>(() => targets.map(() => false));
   const [pending, setPending] = useState<(ChordGuess | null)[]>(() => targets.map(() => null));
@@ -90,26 +92,73 @@ export const EarTrainingView = ({
     if (won) void logPractice();
   }, [won]);
 
-  const freeSlot = pending.findIndex((p, i) => !locked[i] && p === null);
+  const buildChord = (letter: string, accidental: Accidental, quality: ChordQuality): ChordGuess => ({
+    pc: (((LETTER_PC[letter] + ACCIDENTAL_OFFSET[accidental]) % 12) + 12) % 12,
+    quality,
+    label: letter + ACCIDENTAL_SUFFIX[accidental] + (quality === "min" ? "m" : ""),
+    letter,
+    accidental,
+  });
 
-  const pickedChord: ChordGuess | null =
-    letterPick === ""
-      ? null
-      : {
-          pc: (((LETTER_PC[letterPick] + ACCIDENTAL_OFFSET[accidentalPick]) % 12) + 12) % 12,
-          quality: qualityPick,
-          label:
-            letterPick +
-            ACCIDENTAL_SUFFIX[accidentalPick] +
-            (qualityPick === "min" ? "m" : ""),
-        };
+  // First empty, unlocked slot at or after `from` (wrapping), else -1.
+  const nextEmptySlot = (fromPending: (ChordGuess | null)[], fromLocked: boolean[], from = 0): number => {
+    for (let step = 0; step < targets.length; step++) {
+      const i = (from + step) % targets.length;
+      if (!fromLocked[i] && fromPending[i] === null) return i;
+    }
+    return -1;
+  };
 
-  const placeChord = () => {
-    if (!pickedChord || freeSlot === -1) return;
+  // Tap a note letter: fill the highlighted slot and advance to the next open one.
+  const pickNote = (letter: string) => {
+    if (locked[activeSlot]) return;
+    const wasEmpty = pending[activeSlot] === null;
     const next = [...pending];
-    next[freeSlot] = pickedChord;
+    next[activeSlot] = buildChord(letter, accidentalPick, qualityPick);
     setPending(next);
     setLastCheck(null);
+    if (wasEmpty) {
+      const advanceTo = nextEmptySlot(next, locked, activeSlot + 1);
+      if (advanceTo !== -1) {
+        setActiveSlot(advanceTo);
+        setAccidentalPick("natural");
+        setQualityPick("maj");
+      }
+    }
+  };
+
+  // Accidental/quality act as presets — and live-edit the highlighted chord.
+  const pickAccidental = (a: Accidental) => {
+    setAccidentalPick(a);
+    const current = pending[activeSlot];
+    if (current && !locked[activeSlot]) {
+      const next = [...pending];
+      next[activeSlot] = buildChord(current.letter, a, current.quality);
+      setPending(next);
+      setLastCheck(null);
+    }
+  };
+
+  const pickQuality = (q: ChordQuality) => {
+    setQualityPick(q);
+    const current = pending[activeSlot];
+    if (current && !locked[activeSlot]) {
+      const next = [...pending];
+      next[activeSlot] = buildChord(current.letter, current.accidental, q);
+      setPending(next);
+      setLastCheck(null);
+    }
+  };
+
+  // Tap a slot to target it; toggles sync to its chord so it can be edited.
+  const selectSlot = (i: number) => {
+    if (locked[i]) return;
+    setActiveSlot(i);
+    const chord = pending[i];
+    if (chord) {
+      setAccidentalPick(chord.accidental);
+      setQualityPick(chord.quality);
+    }
   };
 
   const clearSlot = (i: number) => {
@@ -117,6 +166,7 @@ export const EarTrainingView = ({
     const next = [...pending];
     next[i] = null;
     setPending(next);
+    setActiveSlot(i);
     setLastCheck(null);
   };
 
@@ -134,11 +184,25 @@ export const EarTrainingView = ({
         wrong++;
       }
     }
+    const cleared = targets.map(() => null);
     setLocked(nextLocked);
-    setPending(targets.map(() => null));
+    setPending(cleared);
     if (hasKey && keyGuess) setKeyResult(keyGuessCorrect(keyGuess, analysis.key));
     setLastCheck({ newlyLocked, wrong });
+    const nextActive = nextEmptySlot(cleared, nextLocked);
+    if (nextActive !== -1) setActiveSlot(nextActive);
+    setAccidentalPick("natural");
+    setQualityPick("maj");
   };
+
+  // Keep the highlight off locked slots (hints can lock the active one).
+  useEffect(() => {
+    if (locked[activeSlot]) {
+      const next = nextEmptySlot(pending, locked, activeSlot + 1);
+      if (next !== -1) setActiveSlot(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked]);
 
   const canCheck = pending.some((p) => p !== null) || (!!keyGuess && keyResult === null);
 
@@ -290,99 +354,103 @@ export const EarTrainingView = ({
                     <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-green-600 bg-green-600/10 text-2xl font-bold text-green-700 dark:text-green-400">
                       {formatChordName(t)}
                     </div>
-                  ) : pending[i] ? (
-                    <button
-                      onClick={() => clearSlot(i)}
-                      title="Remove this guess"
-                      className="group relative flex h-20 w-20 items-center justify-center rounded-xl border-2 border-primary bg-primary/5 text-2xl font-bold"
-                    >
-                      {pending[i]!.label}
-                      <X className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 rounded-full bg-background text-muted-foreground group-hover:block" />
-                    </button>
                   ) : (
-                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed text-3xl font-bold text-muted-foreground/50">
-                      ?
-                    </div>
+                    <button
+                      onClick={() => selectSlot(i)}
+                      title={pending[i] ? "Tap to edit this guess" : "Tap to guess this slot"}
+                      className={cn(
+                        "group relative flex h-20 w-20 items-center justify-center rounded-xl border-2 font-bold transition",
+                        pending[i]
+                          ? "border-primary bg-primary/5 text-2xl"
+                          : "border-dashed text-3xl text-muted-foreground/50",
+                        i === activeSlot && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                      )}
+                    >
+                      {pending[i]?.label ?? "?"}
+                      {pending[i] && (
+                        <X
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearSlot(i);
+                          }}
+                          className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 rounded-full bg-background text-muted-foreground group-hover:block"
+                        />
+                      )}
+                    </button>
                   )}
-                  <span className="text-xs text-muted-foreground">{i + 1}</span>
+                  <span
+                    className={cn(
+                      "text-xs",
+                      i === activeSlot && !locked[i] ? "font-bold text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {i + 1}
+                  </span>
                 </div>
               ))}
             </div>
 
-            {/* Build a chord: note -> accidental -> quality, then place it */}
-            <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="w-16 text-xs text-muted-foreground">Note</span>
-                {NOTE_LETTERS.map((letter) => (
-                  <Button
-                    key={letter}
-                    size="sm"
-                    variant={letterPick === letter ? "default" : "outline"}
-                    className="h-9 w-9 p-0 text-base font-bold"
-                    onClick={() => setLetterPick(letterPick === letter ? "" : letter)}
-                  >
-                    {letter}
-                  </Button>
-                ))}
+            {!allLocked && (
+              <div className="space-y-2">
+                {/* Note letters fill the highlighted slot directly */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {NOTE_LETTERS.map((letter) => (
+                    <Button
+                      key={letter}
+                      size="sm"
+                      variant={pending[activeSlot]?.letter === letter ? "default" : "outline"}
+                      className="h-10 w-10 p-0 text-base font-bold"
+                      onClick={() => pickNote(letter)}
+                    >
+                      {letter}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Tap a note to fill slot {activeSlot + 1} — tap any slot to edit it.
+                </p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="flex items-center gap-1.5">
+                    {(
+                      [
+                        { id: "natural", label: "♮" },
+                        { id: "sharp", label: "♯" },
+                        { id: "flat", label: "♭" },
+                      ] as { id: Accidental; label: string }[]
+                    ).map(({ id, label }) => (
+                      <Button
+                        key={id}
+                        size="sm"
+                        variant={accidentalPick === id ? "default" : "outline"}
+                        className="h-9 w-9 p-0 text-lg"
+                        title={id}
+                        onClick={() => pickAccidental(id)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {(
+                      [
+                        { id: "maj", label: "Major" },
+                        { id: "min", label: "Minor" },
+                      ] as { id: ChordQuality; label: string }[]
+                    ).map(({ id, label }) => (
+                      <Button
+                        key={id}
+                        size="sm"
+                        variant={qualityPick === id ? "default" : "outline"}
+                        className="h-9 px-4"
+                        onClick={() => pickQuality(id)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="w-16 text-xs text-muted-foreground">Accidental</span>
-                {(
-                  [
-                    { id: "natural", label: "♮" },
-                    { id: "sharp", label: "♯" },
-                    { id: "flat", label: "♭" },
-                  ] as { id: Accidental; label: string }[]
-                ).map(({ id, label }) => (
-                  <Button
-                    key={id}
-                    size="sm"
-                    variant={accidentalPick === id ? "default" : "outline"}
-                    className="h-9 w-9 p-0 text-lg"
-                    title={id}
-                    onClick={() => setAccidentalPick(id)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="w-16 text-xs text-muted-foreground">Quality</span>
-                {(
-                  [
-                    { id: "maj", label: "Major" },
-                    { id: "min", label: "Minor" },
-                  ] as { id: ChordQuality; label: string }[]
-                ).map(({ id, label }) => (
-                  <Button
-                    key={id}
-                    size="sm"
-                    variant={qualityPick === id ? "default" : "outline"}
-                    className="h-9 px-4"
-                    onClick={() => setQualityPick(id)}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-              <div className="flex items-center gap-3 pt-1">
-                <span
-                  className={cn(
-                    "flex h-10 min-w-14 items-center justify-center rounded-lg border px-3 text-xl font-bold",
-                    pickedChord ? "bg-background" : "border-dashed text-muted-foreground/40",
-                  )}
-                >
-                  {pickedChord?.label ?? "?"}
-                </span>
-                <Button
-                  size="sm"
-                  onClick={placeChord}
-                  disabled={!pickedChord || freeSlot === -1}
-                >
-                  <Plus className="mr-1 h-4 w-4" /> Place in slot {freeSlot === -1 ? "—" : freeSlot + 1}
-                </Button>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Actions */}
