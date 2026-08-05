@@ -130,10 +130,15 @@ export const EarTrainingView = ({
     }
   };
 
-  // Up/down arrows inside a slot cycle its note letter A..G.
+  // Up/down arrows inside a slot cycle its note letter A..G — but only for the
+  // highlighted slot. On any other slot the first tap just selects it, so a
+  // stray tap can't silently change a chord you weren't looking at.
   const cycleNote = (i: number, direction: 1 | -1) => {
     if (locked[i]) return;
-    setActiveSlot(i);
+    if (i !== activeSlot) {
+      setActiveSlot(i);
+      return;
+    }
     const current = drafts[i].letter;
     const idx = current === null
       ? (direction === 1 ? 0 : NOTE_LETTERS.length - 1)
