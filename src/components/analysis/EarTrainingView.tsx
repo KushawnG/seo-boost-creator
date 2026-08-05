@@ -22,8 +22,8 @@ import { cn } from "@/lib/utils";
 
 type Analysis = Database["public"]["Tables"]["song_analysis"]["Row"];
 
-// A slot's in-progress guess. It only counts (and the highlight only moves on)
-// once all three parts have been explicitly chosen.
+// A slot's in-progress guess. A note alone is a complete guess — accidental
+// defaults to natural and quality to major unless explicitly chosen.
 interface SlotDraft {
   letter: string | null;
   accidental: Accidental | null;
@@ -32,20 +32,28 @@ interface SlotDraft {
 
 const EMPTY_DRAFT: SlotDraft = { letter: null, accidental: null, quality: null };
 
-function draftComplete(d: SlotDraft): boolean {
-  return d.letter !== null && d.accidental !== null && d.quality !== null;
+function draftGradeable(d: SlotDraft): boolean {
+  return d.letter !== null;
+}
+
+function draftAccidental(d: SlotDraft): Accidental {
+  return d.accidental ?? "natural";
+}
+
+function draftQuality(d: SlotDraft): ChordQuality {
+  return d.quality ?? "maj";
 }
 
 function draftPc(d: SlotDraft): number {
-  return (((LETTER_PC[d.letter!] + ACCIDENTAL_OFFSET[d.accidental ?? "natural"]) % 12) + 12) % 12;
+  return (((LETTER_PC[d.letter!] + ACCIDENTAL_OFFSET[draftAccidental(d)]) % 12) + 12) % 12;
 }
 
 function draftLabel(d: SlotDraft): string {
   if (!d.letter) return "";
   return (
     d.letter +
-    (d.accidental ? ACCIDENTAL_SUFFIX[d.accidental] : "") +
-    (d.quality === "min" ? "m" : "")
+    ACCIDENTAL_SUFFIX[draftAccidental(d)] +
+    (draftQuality(d) === "min" ? "m" : "")
   );
 }
 
@@ -109,25 +117,21 @@ export const EarTrainingView = ({
     if (won) void logPractice();
   }, [won]);
 
-  // First unlocked slot with an incomplete draft at or after `from` (wrapping), else -1.
-  const nextOpenSlot = (fromDrafts: SlotDraft[], fromLocked: boolean[], from = 0): number => {
+  // First unlocked slot at or after `from` (wrapping), else -1.
+  const nextUnlockedSlot = (fromLocked: boolean[], from = 0): number => {
     for (let step = 0; step < targets.length; step++) {
       const i = (from + step) % targets.length;
-      if (!fromLocked[i] && !draftComplete(fromDrafts[i])) return i;
+      if (!fromLocked[i]) return i;
     }
     return -1;
   };
 
+  // The highlight never moves on its own — only slot clicks (or a slot
+  // getting locked under it) change it.
   const updateDraft = (i: number, patch: Partial<SlotDraft>) => {
     if (locked[i]) return;
-    const next = drafts.map((d, j) => (j === i ? { ...d, ...patch } : d));
-    setDrafts(next);
+    setDrafts(drafts.map((d, j) => (j === i ? { ...d, ...patch } : d)));
     setLastCheck(null);
-    // Advance only once the slot's chord is fully specified (note + accidental + quality)
-    if (draftComplete(next[i])) {
-      const advanceTo = nextOpenSlot(next, locked, i + 1);
-      if (advanceTo !== -1 && advanceTo !== i) setActiveSlot(advanceTo);
-    }
   };
 
   // Up/down arrows inside a slot cycle its note letter A..G — but only for the
@@ -165,9 +169,9 @@ export const EarTrainingView = ({
     let newlyLocked = 0;
     let wrong = 0;
     for (const draft of drafts) {
-      if (!draftComplete(draft)) continue;
+      if (!draftGradeable(draft)) continue;
       const pc = draftPc(draft);
-      const hit = targets.findIndex((t, j) => !nextLocked[j] && chordGuessMatch(pc, draft.quality!, t));
+      const hit = targets.findIndex((t, j) => !nextLocked[j] && chordGuessMatch(pc, draftQuality(draft), t));
       if (hit >= 0) {
         nextLocked[hit] = true;
         newlyLocked++;
@@ -175,26 +179,23 @@ export const EarTrainingView = ({
         wrong++;
       }
     }
-    const cleared = targets.map(() => EMPTY_DRAFT);
     setLocked(nextLocked);
-    setDrafts(cleared);
+    setDrafts(targets.map(() => EMPTY_DRAFT));
     if (hasKey && keyGuess) setKeyResult(keyGuessCorrect(keyGuess, analysis.key));
     setLastCheck({ newlyLocked, wrong });
-    const nextActive = nextOpenSlot(cleared, nextLocked);
-    if (nextActive !== -1) setActiveSlot(nextActive);
   };
 
-  // Keep the highlight off locked slots (hints can lock the active one).
+  // Keep the highlight off locked slots (checks and hints can lock the active one).
   useEffect(() => {
     if (locked[activeSlot]) {
-      const next = nextOpenSlot(drafts, locked, activeSlot + 1);
+      const next = nextUnlockedSlot(locked, activeSlot + 1);
       if (next !== -1) setActiveSlot(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locked]);
 
   const canCheck =
-    drafts.some((d) => draftComplete(d)) || (!!keyGuess && keyResult === null);
+    drafts.some((d) => draftGradeable(d)) || (!!keyGuess && keyResult === null);
 
   // Progressive hints: one button that escalates. Each press gives the next
   // most useful nudge, and the last chord is never given away.
@@ -347,11 +348,7 @@ export const EarTrainingView = ({
                       onClick={() => selectSlot(i)}
                       className={cn(
                         "group relative flex h-28 w-20 cursor-pointer flex-col items-center justify-between rounded-xl border-2 py-1 transition",
-                        draftComplete(drafts[i])
-                          ? "border-primary bg-primary/5"
-                          : drafts[i].letter
-                            ? "border-primary/50"
-                            : "border-dashed",
+                        drafts[i].letter ? "border-primary bg-primary/5" : "border-dashed",
                         i === activeSlot && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                       )}
                     >
@@ -409,8 +406,8 @@ export const EarTrainingView = ({
             {!allLocked && (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  Use the arrows to pick slot {activeSlot + 1}'s note, then choose its accidental
-                  and quality below.
+                  Use the arrows to pick slot {activeSlot + 1}'s note — accidental and quality
+                  apply below (♮ Major unless you change them). Tap another slot to switch.
                 </p>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                   <div className="flex items-center gap-1.5">
@@ -425,7 +422,7 @@ export const EarTrainingView = ({
                       <Button
                         key={id}
                         size="sm"
-                        variant={drafts[activeSlot]?.accidental === id ? "default" : "outline"}
+                        variant={draftAccidental(drafts[activeSlot] ?? EMPTY_DRAFT) === id ? "default" : "outline"}
                         className="h-9 w-9 p-0 text-lg"
                         title={id}
                         onClick={() => pickAccidental(id)}
@@ -445,7 +442,7 @@ export const EarTrainingView = ({
                       <Button
                         key={id}
                         size="sm"
-                        variant={drafts[activeSlot]?.quality === id ? "default" : "outline"}
+                        variant={draftQuality(drafts[activeSlot] ?? EMPTY_DRAFT) === id ? "default" : "outline"}
                         className="h-9 px-4"
                         onClick={() => pickQuality(id)}
                       >
