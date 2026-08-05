@@ -3,7 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Lightbulb, Repeat, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, Lightbulb, Repeat, X } from "lucide-react";
 import { type ChordSpan, formatChordName } from "@/lib/chords";
 import {
   type ChordQuality,
@@ -22,12 +22,31 @@ import { cn } from "@/lib/utils";
 
 type Analysis = Database["public"]["Tables"]["song_analysis"]["Row"];
 
-interface ChordGuess {
-  pc: number;
-  quality: ChordQuality;
-  label: string; // the user's own spelling, e.g. "Bb" not "A#"
-  letter: string;
-  accidental: Accidental;
+// A slot's in-progress guess. It only counts (and the highlight only moves on)
+// once all three parts have been explicitly chosen.
+interface SlotDraft {
+  letter: string | null;
+  accidental: Accidental | null;
+  quality: ChordQuality | null;
+}
+
+const EMPTY_DRAFT: SlotDraft = { letter: null, accidental: null, quality: null };
+
+function draftComplete(d: SlotDraft): boolean {
+  return d.letter !== null && d.accidental !== null && d.quality !== null;
+}
+
+function draftPc(d: SlotDraft): number {
+  return (((LETTER_PC[d.letter!] + ACCIDENTAL_OFFSET[d.accidental ?? "natural"]) % 12) + 12) % 12;
+}
+
+function draftLabel(d: SlotDraft): string {
+  if (!d.letter) return "";
+  return (
+    d.letter +
+    (d.accidental ? ACCIDENTAL_SUFFIX[d.accidental] : "") +
+    (d.quality === "min" ? "m" : "")
+  );
 }
 
 // Build-a-chord picker: note letter -> accidental -> quality
@@ -60,12 +79,10 @@ export const EarTrainingView = ({
 
   const [keyGuess, setKeyGuess] = useState("");
   const [keyResult, setKeyResult] = useState<boolean | null>(null); // null = unchecked
-  const [accidentalPick, setAccidentalPick] = useState<Accidental>("natural");
-  const [qualityPick, setQualityPick] = useState<ChordQuality>("maj");
   const [activeSlot, setActiveSlot] = useState(0);
-  // One slot per target chord: locked (solved) or holding a pending guess.
+  // One slot per target chord: locked (solved) or holding an in-progress draft.
   const [locked, setLocked] = useState<boolean[]>(() => targets.map(() => false));
-  const [pending, setPending] = useState<(ChordGuess | null)[]>(() => targets.map(() => null));
+  const [drafts, setDrafts] = useState<SlotDraft[]>(() => targets.map(() => EMPTY_DRAFT));
   const [lastCheck, setLastCheck] = useState<{ newlyLocked: number; wrong: number } | null>(null);
   const [keyRevealed, setKeyRevealed] = useState(false);
   const [firstChordRevealed, setFirstChordRevealed] = useState(false);
@@ -92,80 +109,48 @@ export const EarTrainingView = ({
     if (won) void logPractice();
   }, [won]);
 
-  const buildChord = (letter: string, accidental: Accidental, quality: ChordQuality): ChordGuess => ({
-    pc: (((LETTER_PC[letter] + ACCIDENTAL_OFFSET[accidental]) % 12) + 12) % 12,
-    quality,
-    label: letter + ACCIDENTAL_SUFFIX[accidental] + (quality === "min" ? "m" : ""),
-    letter,
-    accidental,
-  });
-
-  // First empty, unlocked slot at or after `from` (wrapping), else -1.
-  const nextEmptySlot = (fromPending: (ChordGuess | null)[], fromLocked: boolean[], from = 0): number => {
+  // First unlocked slot with an incomplete draft at or after `from` (wrapping), else -1.
+  const nextOpenSlot = (fromDrafts: SlotDraft[], fromLocked: boolean[], from = 0): number => {
     for (let step = 0; step < targets.length; step++) {
       const i = (from + step) % targets.length;
-      if (!fromLocked[i] && fromPending[i] === null) return i;
+      if (!fromLocked[i] && !draftComplete(fromDrafts[i])) return i;
     }
     return -1;
   };
 
-  // Tap a note letter: fill the highlighted slot and advance to the next open one.
-  const pickNote = (letter: string) => {
-    if (locked[activeSlot]) return;
-    const wasEmpty = pending[activeSlot] === null;
-    const next = [...pending];
-    next[activeSlot] = buildChord(letter, accidentalPick, qualityPick);
-    setPending(next);
+  const updateDraft = (i: number, patch: Partial<SlotDraft>) => {
+    if (locked[i]) return;
+    const next = drafts.map((d, j) => (j === i ? { ...d, ...patch } : d));
+    setDrafts(next);
     setLastCheck(null);
-    if (wasEmpty) {
-      const advanceTo = nextEmptySlot(next, locked, activeSlot + 1);
-      if (advanceTo !== -1) {
-        setActiveSlot(advanceTo);
-        setAccidentalPick("natural");
-        setQualityPick("maj");
-      }
+    // Advance only once the slot's chord is fully specified (note + accidental + quality)
+    if (draftComplete(next[i])) {
+      const advanceTo = nextOpenSlot(next, locked, i + 1);
+      if (advanceTo !== -1 && advanceTo !== i) setActiveSlot(advanceTo);
     }
   };
 
-  // Accidental/quality act as presets — and live-edit the highlighted chord.
-  const pickAccidental = (a: Accidental) => {
-    setAccidentalPick(a);
-    const current = pending[activeSlot];
-    if (current && !locked[activeSlot]) {
-      const next = [...pending];
-      next[activeSlot] = buildChord(current.letter, a, current.quality);
-      setPending(next);
-      setLastCheck(null);
-    }
-  };
-
-  const pickQuality = (q: ChordQuality) => {
-    setQualityPick(q);
-    const current = pending[activeSlot];
-    if (current && !locked[activeSlot]) {
-      const next = [...pending];
-      next[activeSlot] = buildChord(current.letter, current.accidental, q);
-      setPending(next);
-      setLastCheck(null);
-    }
-  };
-
-  // Tap a slot to target it; toggles sync to its chord so it can be edited.
-  const selectSlot = (i: number) => {
+  // Up/down arrows inside a slot cycle its note letter A..G.
+  const cycleNote = (i: number, direction: 1 | -1) => {
     if (locked[i]) return;
     setActiveSlot(i);
-    const chord = pending[i];
-    if (chord) {
-      setAccidentalPick(chord.accidental);
-      setQualityPick(chord.quality);
-    }
+    const current = drafts[i].letter;
+    const idx = current === null
+      ? (direction === 1 ? 0 : NOTE_LETTERS.length - 1)
+      : (NOTE_LETTERS.indexOf(current as typeof NOTE_LETTERS[number]) + direction + NOTE_LETTERS.length) % NOTE_LETTERS.length;
+    updateDraft(i, { letter: NOTE_LETTERS[idx] });
+  };
+
+  const pickAccidental = (a: Accidental) => updateDraft(activeSlot, { accidental: a });
+  const pickQuality = (q: ChordQuality) => updateDraft(activeSlot, { quality: q });
+
+  const selectSlot = (i: number) => {
+    if (!locked[i]) setActiveSlot(i);
   };
 
   const clearSlot = (i: number) => {
     if (locked[i]) return;
-    const next = [...pending];
-    next[i] = null;
-    setPending(next);
+    setDrafts(drafts.map((d, j) => (j === i ? EMPTY_DRAFT : d)));
     setActiveSlot(i);
     setLastCheck(null);
   };
@@ -174,9 +159,10 @@ export const EarTrainingView = ({
     const nextLocked = [...locked];
     let newlyLocked = 0;
     let wrong = 0;
-    for (const guess of pending) {
-      if (!guess) continue;
-      const hit = targets.findIndex((t, j) => !nextLocked[j] && chordGuessMatch(guess.pc, guess.quality, t));
+    for (const draft of drafts) {
+      if (!draftComplete(draft)) continue;
+      const pc = draftPc(draft);
+      const hit = targets.findIndex((t, j) => !nextLocked[j] && chordGuessMatch(pc, draft.quality!, t));
       if (hit >= 0) {
         nextLocked[hit] = true;
         newlyLocked++;
@@ -184,27 +170,26 @@ export const EarTrainingView = ({
         wrong++;
       }
     }
-    const cleared = targets.map(() => null);
+    const cleared = targets.map(() => EMPTY_DRAFT);
     setLocked(nextLocked);
-    setPending(cleared);
+    setDrafts(cleared);
     if (hasKey && keyGuess) setKeyResult(keyGuessCorrect(keyGuess, analysis.key));
     setLastCheck({ newlyLocked, wrong });
-    const nextActive = nextEmptySlot(cleared, nextLocked);
+    const nextActive = nextOpenSlot(cleared, nextLocked);
     if (nextActive !== -1) setActiveSlot(nextActive);
-    setAccidentalPick("natural");
-    setQualityPick("maj");
   };
 
   // Keep the highlight off locked slots (hints can lock the active one).
   useEffect(() => {
     if (locked[activeSlot]) {
-      const next = nextEmptySlot(pending, locked, activeSlot + 1);
+      const next = nextOpenSlot(drafts, locked, activeSlot + 1);
       if (next !== -1) setActiveSlot(next);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locked]);
 
-  const canCheck = pending.some((p) => p !== null) || (!!keyGuess && keyResult === null);
+  const canCheck =
+    drafts.some((d) => draftComplete(d)) || (!!keyGuess && keyResult === null);
 
   // Progressive hints: one button that escalates. Each press gives the next
   // most useful nudge, and the last chord is never given away.
@@ -251,9 +236,7 @@ export const EarTrainingView = ({
       const nextLocked = [...locked];
       nextLocked[idx] = true;
       setLocked(nextLocked);
-      const nextPending = [...pending];
-      nextPending[idx] = null;
-      setPending(nextPending);
+      setDrafts(drafts.map((d, j) => (j === idx ? EMPTY_DRAFT : d)));
       const remaining = unlockedIdxs.length - 1;
       setHintLog([
         ...hintLog,
@@ -351,32 +334,60 @@ export const EarTrainingView = ({
               {targets.map((t, i) => (
                 <div key={i} className="flex flex-col items-center gap-1">
                   {locked[i] ? (
-                    <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-green-600 bg-green-600/10 text-2xl font-bold text-green-700 dark:text-green-400">
+                    <div className="flex h-28 w-20 items-center justify-center rounded-xl border-2 border-green-600 bg-green-600/10 text-2xl font-bold text-green-700 dark:text-green-400">
                       {formatChordName(t)}
                     </div>
                   ) : (
-                    <button
+                    <div
                       onClick={() => selectSlot(i)}
-                      title={pending[i] ? "Tap to edit this guess" : "Tap to guess this slot"}
                       className={cn(
-                        "group relative flex h-20 w-20 items-center justify-center rounded-xl border-2 font-bold transition",
-                        pending[i]
-                          ? "border-primary bg-primary/5 text-2xl"
-                          : "border-dashed text-3xl text-muted-foreground/50",
+                        "group relative flex h-28 w-20 cursor-pointer flex-col items-center justify-between rounded-xl border-2 py-1 transition",
+                        draftComplete(drafts[i])
+                          ? "border-primary bg-primary/5"
+                          : drafts[i].letter
+                            ? "border-primary/50"
+                            : "border-dashed",
                         i === activeSlot && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                       )}
                     >
-                      {pending[i]?.label ?? "?"}
-                      {pending[i] && (
+                      <button
+                        aria-label={`Slot ${i + 1} note up`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cycleNote(i, 1);
+                        }}
+                        className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <ChevronUp className="h-5 w-5" />
+                      </button>
+                      <span
+                        className={cn(
+                          "text-2xl font-bold",
+                          drafts[i].letter ? "" : "text-muted-foreground/40",
+                        )}
+                      >
+                        {draftLabel(drafts[i]) || "–"}
+                      </span>
+                      <button
+                        aria-label={`Slot ${i + 1} note down`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cycleNote(i, -1);
+                        }}
+                        className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        <ChevronDown className="h-5 w-5" />
+                      </button>
+                      {drafts[i].letter && (
                         <X
                           onClick={(e) => {
                             e.stopPropagation();
                             clearSlot(i);
                           }}
-                          className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 rounded-full bg-background text-muted-foreground group-hover:block"
+                          className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 cursor-pointer rounded-full bg-background text-muted-foreground group-hover:block"
                         />
                       )}
-                    </button>
+                    </div>
                   )}
                   <span
                     className={cn(
@@ -392,25 +403,13 @@ export const EarTrainingView = ({
 
             {!allLocked && (
               <div className="space-y-2">
-                {/* Note letters fill the highlighted slot directly */}
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {NOTE_LETTERS.map((letter) => (
-                    <Button
-                      key={letter}
-                      size="sm"
-                      variant={pending[activeSlot]?.letter === letter ? "default" : "outline"}
-                      className="h-10 w-10 p-0 text-base font-bold"
-                      onClick={() => pickNote(letter)}
-                    >
-                      {letter}
-                    </Button>
-                  ))}
-                </div>
                 <p className="text-xs text-muted-foreground">
-                  Tap a note to fill slot {activeSlot + 1} — tap any slot to edit it.
+                  Use the arrows to pick slot {activeSlot + 1}'s note, then choose its accidental
+                  and quality below.
                 </p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                   <div className="flex items-center gap-1.5">
+                    <span className="mr-1 text-xs text-muted-foreground">Accidental</span>
                     {(
                       [
                         { id: "natural", label: "♮" },
@@ -421,7 +420,7 @@ export const EarTrainingView = ({
                       <Button
                         key={id}
                         size="sm"
-                        variant={accidentalPick === id ? "default" : "outline"}
+                        variant={drafts[activeSlot]?.accidental === id ? "default" : "outline"}
                         className="h-9 w-9 p-0 text-lg"
                         title={id}
                         onClick={() => pickAccidental(id)}
@@ -431,6 +430,7 @@ export const EarTrainingView = ({
                     ))}
                   </div>
                   <div className="flex items-center gap-1.5">
+                    <span className="mr-1 text-xs text-muted-foreground">Quality</span>
                     {(
                       [
                         { id: "maj", label: "Major" },
@@ -440,7 +440,7 @@ export const EarTrainingView = ({
                       <Button
                         key={id}
                         size="sm"
-                        variant={qualityPick === id ? "default" : "outline"}
+                        variant={drafts[activeSlot]?.quality === id ? "default" : "outline"}
                         className="h-9 px-4"
                         onClick={() => pickQuality(id)}
                       >
