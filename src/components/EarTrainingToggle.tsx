@@ -9,13 +9,16 @@ import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
 // users get an upsell nudge instead of the toggle flipping.
 export function EarTrainingToggle({ onUpsell }: { onUpsell?: () => void }) {
   const { toast } = useToast();
-  const { data: subscription } = useSubscription();
+  const { data: subscription, isLoading: subLoading } = useSubscription();
   const isPaid = subscription?.plan_type === "pro" || subscription?.plan_type === "premium";
   const [enabled, setEnabled] = useEarTrainingMode();
 
   const handleChange = (next: boolean) => {
     // Free users may always turn the mode OFF (it can arrive pre-set from the
-    // landing page as a spoiler shield) — only turning it ON is gated.
+    // landing page as a spoiler shield) — only turning it ON is gated. While
+    // the subscription is still loading we don't know the plan yet, so don't
+    // upsell a possibly-paid user.
+    if (next && subLoading) return;
     if (next && !isPaid) {
       toast({
         title: "🎧 Ear Training is a Pro feature",
@@ -40,7 +43,7 @@ export function EarTrainingToggle({ onUpsell }: { onUpsell?: () => void }) {
     <label className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5">
       <Ear className="h-4 w-4 text-primary" />
       <span className="text-sm font-medium whitespace-nowrap">Ear Training</span>
-      {!isPaid && (
+      {!subLoading && !isPaid && (
         <Badge variant="secondary" className="gap-1 text-xs">
           <Lock className="h-3 w-3" /> Pro
         </Badge>

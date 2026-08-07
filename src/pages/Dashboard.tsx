@@ -43,7 +43,7 @@ const Dashboard = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  const { data: subscription } = useSubscription();
+  const { data: subscription, isLoading: subLoading } = useSubscription();
   const plan = planFor(subscription?.plan_type);
   const creditsRemaining = subscription?.credits_remaining ?? plan.monthlyCredits;
 
@@ -185,10 +185,12 @@ const Dashboard = () => {
             <div className="flex w-full flex-wrap items-center gap-3 md:w-auto">
               <EarTrainingToggle onUpsell={() => selectTab("billing")} />
               <div className="text-sm md:text-base">
-                Credits: <span className="font-semibold">{creditsRemaining}</span> remaining
+                Credits:{" "}
+                <span className="font-semibold">{subLoading ? "…" : creditsRemaining}</span>{" "}
+                remaining
               </div>
               <Button onClick={() => selectTab("billing")} size="sm" variant="outline">
-                {plan.name}
+                {subLoading ? "…" : plan.name}
               </Button>
             </div>
           </div>

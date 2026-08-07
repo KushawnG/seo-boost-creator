@@ -16,7 +16,7 @@ const selectClass =
 // teaser — their activity is still logged, so history is intact on upgrade.
 export const PracticeStreakCard = () => {
   const queryClient = useQueryClient();
-  const { data: subscription } = useSubscription();
+  const { data: subscription, isLoading: subLoading } = useSubscription();
   const isPaid = subscription?.plan_type === "pro" || subscription?.plan_type === "premium";
 
   const { data: days } = useQuery({
@@ -54,6 +54,18 @@ export const PracticeStreakCard = () => {
       .upsert({ user_id: user.id, goal_days: goalDays, updated_at: new Date().toISOString() });
     queryClient.invalidateQueries({ queryKey: ["practice-goal"] });
   };
+
+  // While the subscription is loading we don't know the plan — render a quiet
+  // placeholder instead of flashing the free-plan teaser at paid users.
+  if (subLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="h-24 animate-pulse rounded-md bg-muted/50" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!isPaid) {
     return (
