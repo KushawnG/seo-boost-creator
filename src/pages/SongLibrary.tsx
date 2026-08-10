@@ -17,6 +17,7 @@ type Song = {
   song_key: string | null;
   bpm: number | null;
   main_chords: string[] | null;
+  main_progression: string[] | null;
 };
 
 const SongLibrary = () => {
@@ -34,7 +35,7 @@ const SongLibrary = () => {
     queryFn: async (): Promise<Song[]> => {
       const { data, error } = await supabase
         .from("public_songs")
-        .select("slug,title,artist,song_key,bpm,main_chords")
+        .select("slug,title,artist,song_key,bpm,main_chords,main_progression")
         .eq("published", true)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -98,10 +99,20 @@ const SongLibrary = () => {
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {s.song_key && <Badge variant="secondary">Key: {s.song_key}</Badge>}
                       {s.bpm && <Badge variant="secondary">{s.bpm} BPM</Badge>}
-                      {s.main_chords && s.main_chords.length > 0 && (
-                        <span className="text-sm text-muted-foreground">{s.main_chords.join(" · ")}</span>
-                      )}
                     </div>
+                    {s.main_progression && s.main_progression.length > 0 ? (
+                      <div className="mt-2 text-sm">
+                        <span className="text-muted-foreground">Progression: </span>
+                        <span className="font-semibold">{s.main_progression.join(" → ")}</span>
+                      </div>
+                    ) : (
+                      s.main_chords &&
+                      s.main_chords.length > 0 && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          {s.main_chords.join(" · ")}
+                        </div>
+                      )
+                    )}
                   </CardContent>
                 </Card>
               </Link>

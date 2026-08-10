@@ -56,6 +56,7 @@ export type Database = {
           bpm: number | null
           created_at: string
           main_chords: string[] | null
+          main_progression: string[] | null
           published: boolean
           slug: string
           song_key: string | null
@@ -69,6 +70,7 @@ export type Database = {
           bpm?: number | null
           created_at?: string
           main_chords?: string[] | null
+          main_progression?: string[] | null
           published?: boolean
           slug: string
           song_key?: string | null
@@ -82,6 +84,7 @@ export type Database = {
           bpm?: number | null
           created_at?: string
           main_chords?: string[] | null
+          main_progression?: string[] | null
           published?: boolean
           slug?: string
           song_key?: string | null

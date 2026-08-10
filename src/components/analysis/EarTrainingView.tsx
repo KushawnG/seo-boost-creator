@@ -3,7 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Eye, Lightbulb, Repeat, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, Lightbulb, ListMusic, Repeat, X } from "lucide-react";
 import { type ChordSpan, formatChordName } from "@/lib/chords";
 import {
   type ChordQuality,
@@ -90,6 +90,10 @@ export const EarTrainingView = ({
   const [activeSlot, setActiveSlot] = useState(0);
   // One slot per target chord: locked (solved) or holding an in-progress draft.
   const [locked, setLocked] = useState<boolean[]>(() => targets.map(() => false));
+  // Which locks the player earned vs. which a hint handed them — the give-up
+  // summary scores those differently.
+  const [hintLocked, setHintLocked] = useState<boolean[]>(() => targets.map(() => false));
+  const [surrendered, setSurrendered] = useState(false);
   const [drafts, setDrafts] = useState<SlotDraft[]>(() => targets.map(() => EMPTY_DRAFT));
   const [lastCheck, setLastCheck] = useState<{ newlyLocked: number; wrong: number } | null>(null);
   const [keyRevealed, setKeyRevealed] = useState(false);
@@ -99,12 +103,18 @@ export const EarTrainingView = ({
   const [showDiatonic, setShowDiatonic] = useState(false);
 
   const lockedCount = locked.filter(Boolean).length;
+  const hintCount = hintLocked.filter(Boolean).length;
+  const solvedYourself = lockedCount - hintCount;
+  const missedCount = targets.length - lockedCount;
   const allLocked = targets.length > 0 && lockedCount === targets.length;
   const keyKnown = keyRevealed || keyResult === true;
   const won = allLocked && (keyKnown || !hasKey);
+  // Giving up also puts the key on screen, so the "chords in this key" helper
+  // becomes useful study material rather than a spoiler.
+  const keyShown = keyKnown || surrendered;
   const diatonic = useMemo(
-    () => (keyKnown ? diatonicChords(analysis.key) : null),
-    [keyKnown, analysis.key],
+    () => (keyShown ? diatonicChords(analysis.key) : null),
+    [keyShown, analysis.key],
   );
 
   // Songs loop automatically in this mode; autoplay is best-effort.
@@ -242,6 +252,7 @@ export const EarTrainingView = ({
       const nextLocked = [...locked];
       nextLocked[idx] = true;
       setLocked(nextLocked);
+      setHintLocked(hintLocked.map((h, j) => (j === idx ? true : h)));
       setDrafts(drafts.map((d, j) => (j === idx ? EMPTY_DRAFT : d)));
       const remaining = unlockedIdxs.length - 1;
       setHintLog([
@@ -287,10 +298,13 @@ export const EarTrainingView = ({
       <Card>
         <CardContent className="space-y-6 p-6">
           <div>
-            <h2 className="text-lg font-bold">What do you hear? 🎧</h2>
+            <h2 className="text-lg font-bold">
+              {surrendered ? "Here's what the song was doing 🎧" : "What do you hear? 🎧"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Fill every chord slot and name the key. Correct chords lock in — wrong guesses bounce
-              out, so keep listening and try again.
+              {surrendered
+                ? "Every answer is revealed below — the song keeps looping, so play them back and hear how each one sits."
+                : "Fill every chord slot and name the key. Correct chords lock in — wrong guesses bounce out, so keep listening and try again."}
             </p>
           </div>
 
@@ -309,7 +323,7 @@ export const EarTrainingView = ({
                     setKeyGuess(e.target.value);
                     setKeyResult(null);
                   }}
-                  disabled={keyKnown}
+                  disabled={keyKnown || surrendered}
                 >
                   <option value="">Pick a key…</option>
                   {KEY_GUESS_OPTIONS.map((o) => (
@@ -319,8 +333,18 @@ export const EarTrainingView = ({
                   ))}
                 </select>
                 {keyResult === true && <Badge className="bg-green-600">✓ Correct!</Badge>}
-                {keyResult === false && <Badge variant="destructive">✗ Not it — listen again</Badge>}
+                {keyResult === false && !surrendered && (
+                  <Badge variant="destructive">✗ Not it — listen again</Badge>
+                )}
                 {keyRevealed && <Badge variant="secondary">Key: {analysis.key}</Badge>}
+                {surrendered && !keyKnown && (
+                  <Badge
+                    variant="outline"
+                    className="border-red-500 bg-red-500/10 text-red-600 dark:text-red-400"
+                  >
+                    Missed — the key is {analysis.key}
+                  </Badge>
+                )}
               </div>
             </div>
           )}
@@ -339,7 +363,23 @@ export const EarTrainingView = ({
             <div className="flex flex-wrap gap-3">
               {targets.map((t, i) => (
                 <div key={i} className="flex flex-col items-center gap-1">
-                  {locked[i] ? (
+                  {surrendered ? (
+                    <div
+                      className={cn(
+                        "flex h-28 w-20 flex-col items-center justify-center gap-1 rounded-xl border-2 text-2xl font-bold",
+                        !locked[i]
+                          ? "border-red-500 bg-red-500/10 text-red-600 dark:text-red-400"
+                          : hintLocked[i]
+                            ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                            : "border-green-600 bg-green-600/10 text-green-700 dark:text-green-400",
+                      )}
+                    >
+                      {formatChordName(t)}
+                      <span className="text-[10px] font-medium uppercase tracking-wide opacity-80">
+                        {!locked[i] ? "missed" : hintLocked[i] ? "hint" : "you got it"}
+                      </span>
+                    </div>
+                  ) : locked[i] ? (
                     <div className="flex h-28 w-20 items-center justify-center rounded-xl border-2 border-green-600 bg-green-600/10 text-2xl font-bold text-green-700 dark:text-green-400">
                       {formatChordName(t)}
                     </div>
@@ -403,7 +443,7 @@ export const EarTrainingView = ({
               ))}
             </div>
 
-            {!allLocked && (
+            {!allLocked && !surrendered && (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
                   Use the arrows to pick slot {activeSlot + 1}'s note — accidental and quality
@@ -456,17 +496,19 @@ export const EarTrainingView = ({
           </div>
 
           {/* Actions */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={checkAnswers} disabled={!canCheck}>
-              Check answers
-            </Button>
-            {!won && nextHintAvailable && (
-              <Button variant="outline" size="sm" onClick={takeHint}>
-                <Lightbulb className="mr-1 h-4 w-4" />
-                {hintLog.length === 0 ? "Hint" : "Another hint"}
+          {!surrendered && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={checkAnswers} disabled={!canCheck}>
+                Check answers
               </Button>
-            )}
-          </div>
+              {!won && nextHintAvailable && (
+                <Button variant="outline" size="sm" onClick={takeHint}>
+                  <Lightbulb className="mr-1 h-4 w-4" />
+                  {hintLog.length === 0 ? "Hint" : "Another hint"}
+                </Button>
+              )}
+            </div>
+          )}
 
           {hintLog.length > 0 && (
             <div className="space-y-1 rounded-lg border border-amber-300/50 bg-amber-500/5 p-3">
@@ -479,7 +521,34 @@ export const EarTrainingView = ({
           )}
 
           {/* Feedback */}
-          {won ? (
+          {surrendered ? (
+            <div className="space-y-3 rounded-lg border bg-muted/40 p-4 text-sm">
+              <p className="font-semibold">
+                Here's the answer. You had {solvedYourself} of {targets.length} chord
+                {targets.length === 1 ? "" : "s"} on your own
+                {hintCount > 0 ? `, ${hintCount} came from a hint` : ""}
+                {missedCount > 0 ? `, and ${missedCount} got away` : ""}.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border-2 border-green-600 bg-green-600/20" />
+                  you got it
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border-2 border-amber-500 bg-amber-500/20" />
+                  hint
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm border-2 border-red-500 bg-red-500/20" />
+                  missed
+                </span>
+              </div>
+              <p className="text-muted-foreground">
+                Listen once more with the answers in front of you — that's where the ear actually
+                learns.
+              </p>
+            </div>
+          ) : won ? (
             <div className="rounded-lg border border-green-600 bg-green-600/10 p-4 text-sm">
               <p className="font-semibold">
                 🎉 You did it! {hasKey ? "Key and all" : "All"} {targets.length} chords locked in.
@@ -509,7 +578,7 @@ export const EarTrainingView = ({
           ) : null}
 
           {/* Key helper */}
-          {keyKnown && (
+          {keyShown && (
             <div className="space-y-2">
               <Button variant="outline" size="sm" onClick={() => setShowDiatonic(!showDiatonic)}>
                 {showDiatonic ? "Hide" : "Show"} the chords in this key
@@ -534,11 +603,31 @@ export const EarTrainingView = ({
         </CardContent>
       </Card>
 
-      <div className="flex justify-center">
-        <Button variant="ghost" className="text-muted-foreground" onClick={onReveal}>
-          <Eye className="mr-2 h-4 w-4" /> Give up — reveal the full analysis
-        </Button>
+      {/* Exits: give up reveals the answers here; the play-along view is a
+          separate, deliberate step so the answers don't yank you off the page. */}
+      <div className="flex flex-wrap justify-center gap-2">
+        {surrendered ? (
+          <Button onClick={onReveal}>
+            <ListMusic className="mr-2 h-4 w-4" /> Open the play-along view
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={() => {
+              setSurrendered(true);
+              setLastCheck(null);
+            }}
+          >
+            <Eye className="mr-2 h-4 w-4" /> Give up — show me the answers
+          </Button>
+        )}
       </div>
+      {surrendered && (
+        <p className="-mt-3 text-center text-xs text-muted-foreground">
+          The play-along view has the full timeline, chord diagrams and practice tools.
+        </p>
+      )}
     </div>
   );
 };

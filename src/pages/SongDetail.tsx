@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BrandLogo } from "@/components/BrandLogo";
-import { ArrowLeft, Guitar, Piano, Play } from "lucide-react";
+import { ArrowLeft, ChevronRight, Guitar, Piano, Play, RefreshCw } from "lucide-react";
 import { usePageMeta } from "@/lib/seo";
 
 type Song = {
@@ -16,6 +16,7 @@ type Song = {
   bpm: number | null;
   time_signature: string | null;
   main_chords: string[] | null;
+  main_progression: string[] | null;
 };
 
 const SongDetail = () => {
@@ -27,7 +28,7 @@ const SongDetail = () => {
     queryFn: async (): Promise<Song | null> => {
       const { data, error } = await supabase
         .from("public_songs")
-        .select("slug,title,artist,song_key,bpm,time_signature,main_chords")
+        .select("slug,title,artist,song_key,bpm,time_signature,main_chords,main_progression")
         .eq("slug", slug!)
         .eq("published", true)
         .maybeSingle();
@@ -38,12 +39,15 @@ const SongDetail = () => {
 
   const artistPart = song?.artist ? ` by ${song.artist}` : "";
   const chords = song?.main_chords?.join(" · ") ?? "";
+  const progression = song?.main_progression?.join(" – ") ?? "";
   usePageMeta({
     title: song
       ? `${song.title}${artistPart} — Chords, Key & BPM | Chord Finder AI`
       : "Song — Chord Finder AI",
     description: song
-      ? `${song.title}${artistPart} is in the key of ${song.song_key ?? "—"} at ${song.bpm ?? "—"} BPM. Main chords: ${chords}. Play along with the chords synced to the music, with guitar & piano diagrams.`
+      ? `${song.title}${artistPart} is in the key of ${song.song_key ?? "—"} at ${song.bpm ?? "—"} BPM.${
+          progression ? ` Main chord progression: ${progression}.` : ` Main chords: ${chords}.`
+        } Play along with the chords synced to the music, with guitar & piano diagrams.`
       : undefined,
     canonicalPath: slug ? `/songs/${slug}` : undefined,
   });
@@ -89,10 +93,38 @@ const SongDetail = () => {
               {song.time_signature && <Badge className="text-sm">{song.time_signature}</Badge>}
             </div>
 
-            {song.main_chords && song.main_chords.length > 0 && (
-              <Card className="mt-6">
+            {song.main_progression && song.main_progression.length > 0 && (
+              <Card className="mt-6 border-primary/40">
                 <CardContent className="p-6">
-                  <div className="text-sm uppercase tracking-wide text-muted-foreground">Main chords</div>
+                  <div className="text-sm uppercase tracking-wide text-muted-foreground">
+                    Main chord progression
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
+                    {song.main_progression.map((c, i) => (
+                      <span key={`${c}-${i}`} className="flex items-center gap-1">
+                        {i > 0 && <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />}
+                        <span className="rounded-lg border border-primary/40 bg-primary/5 px-4 py-2 text-xl font-bold">
+                          {c}
+                        </span>
+                      </span>
+                    ))}
+                    <RefreshCw className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                  </div>
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    This {song.main_progression.length}-chord loop repeats through most of “{song.title}”
+                    {song.song_key ? ` in ${song.song_key}` : ""} — learn it and you can play along with
+                    the bulk of the song.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {song.main_chords && song.main_chords.length > 0 && (
+              <Card className="mt-4">
+                <CardContent className="p-6">
+                  <div className="text-sm uppercase tracking-wide text-muted-foreground">
+                    All main chords
+                  </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {song.main_chords.map((c) => (
                       <span
@@ -104,8 +136,8 @@ const SongDetail = () => {
                     ))}
                   </div>
                   <p className="mt-4 text-sm text-muted-foreground">
-                    The main chords used throughout “{song.title}”. The full progression, timing, and
-                    fingerings are available in the player below.
+                    Every chord that carries “{song.title}”, including the ones outside the main loop.
+                    Exact timing and fingerings are in the player below.
                   </p>
                 </CardContent>
               </Card>
