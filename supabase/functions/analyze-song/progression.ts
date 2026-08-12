@@ -228,6 +228,69 @@ export function chordsInOrder(timeline: ChordSpan[]): string[] {
 const MAX_LOOP_BARS = 8;
 const MIN_COVERAGE = 0.25;
 
+/** Slot boundaries taken every `step` beats, starting `offset` beats in. */
+function steppedGrid(beatTimes: number[], step: number, offset: number): number[] {
+  const out: number[] = [];
+  for (let i = offset; i < beatTimes.length; i += step) out.push(beatTimes[i]);
+  return out;
+}
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+/**
+ * Express a loop at its own resolution. Found on a beat grid, a one-chord-per-bar
+ * loop arrives as "E E E E Bm Bm Bm Bm …"; every run divides by four, so it is
+ * really "E Bm A E". A genuine two-bar hold (runs of 2, 1, 1) has no common
+ * divisor and is left alone.
+ */
+function normalizeRuns(window: string[]): string[] {
+  const runs: { chord: string; count: number }[] = [];
+  for (const chord of window) {
+    const last = runs[runs.length - 1];
+    if (last && last.chord === chord) last.count++;
+    else runs.push({ chord, count: 1 });
+  }
+  let divisor = runs[0].count;
+  for (const run of runs) divisor = gcd(divisor, run.count);
+  if (divisor <= 1) return window;
+  const out: string[] = [];
+  for (const run of runs) {
+    for (let i = 0; i < run.count / divisor; i++) out.push(run.chord);
+  }
+  return out;
+}
+
+/** Best repeating window in a slot sequence, scored by how much of it they tile. */
+function findLoop(slots: string[], maxLen: number): { window: string[]; coverage: number } | null {
+  const n = slots.length;
+  let best: string[] | null = null;
+  let bestCoverage = 0;
+  for (let L = 2; L <= Math.min(maxLen, Math.floor(n / 2)); L++) {
+    for (let phase = 0; phase < L; phase++) {
+      const counts = new Map<string, number>();
+      for (let i = phase; i + L <= n; i += L) {
+        const window = slots.slice(i, i + L);
+        if (window.some((c) => isNoChord(c))) continue;
+        const k = window.join("|");
+        counts.set(k, (counts.get(k) ?? 0) + 1);
+      }
+      for (const [k, count] of counts) {
+        if (count < 2) continue;
+        const window = k.split("|");
+        if (isRepeatedCycle(window) || isDominatedByOneChord(window)) continue;
+        const coverage = (count * L) / n;
+        if (coverage > bestCoverage) {
+          bestCoverage = coverage;
+          best = window;
+        }
+      }
+    }
+  }
+  return best ? { window: best, coverage: bestCoverage } : null;
+}
+
 /** Is `window` just a shorter cycle written out several times? */
 function isRepeatedCycle(window: string[]): boolean {
   const L = window.length;
@@ -275,13 +338,19 @@ function isDominatedByOneChord(window: string[]): boolean {
 }
 
 /**
- * The repeating bar-level loop that carries the song, e.g. E - Bm - A - E.
+ * The repeating loop that carries the song, e.g. E - Bm - A - E.
  *
- * Works on bars rather than chord changes so a chord held for two bars counts
- * twice: that's the difference between "E Bm A E" (what players count) and
- * "E Bm A" (what a naive de-duplicated read produces). Candidates are scored by
- * how much of the song they tile end-to-end, so a doubled-up copy of a loop can
- * never beat the loop itself.
+ * Counts in slots rather than chord changes, so a chord held for two bars counts
+ * twice — that's the difference between "E Bm A E" (what players count) and
+ * "E Bm A" (what a naive de-duplicated read produces).
+ *
+ * Harmonic rhythm varies, so there's no single right slot size: plenty of songs
+ * change chord twice a bar, and plenty push the change off the downbeat. Every
+ * sensible grid is tried — whole bar, half bar, single beat, at each offset
+ * within the bar — and whichever tiles the most of the song wins, with coarser
+ * grids preferred on a tie. The winning loop is then written at its own
+ * resolution, so a bar-per-chord loop found on a beat grid still reads as four
+ * chords rather than sixteen.
  */
 export function mainProgression(
   timeline: ChordSpan[],
@@ -293,39 +362,31 @@ export function mainProgression(
   if (timeline.length < 2) return null;
   const startTime = timeline[0][0];
   const endTime = timeline[timeline.length - 1][1];
-  const grid = barGrid(beats, bpm, timeSignature, startTime, endTime);
-  if (grid.length < 5) return null;
-  const barSeconds = (beatsPerBar(timeSignature) * 60) / (bpm || DEFAULT_BPM);
-  const denoised = dropArtifactChords(mergeAdjacent(timeline), barSeconds);
-  const bars = quantize(denoised, grid);
-  const n = bars.length;
-  if (n < 4) return null;
+  const beatTimes = beatGrid(beats, bpm, startTime, endTime);
+  if (beatTimes.length < 8) return null;
 
+  const per = beatsPerBar(timeSignature);
+  const barSeconds = (per * 60) / (bpm || DEFAULT_BPM);
+  const denoised = dropArtifactChords(mergeAdjacent(timeline), barSeconds);
+
+  // Coarse grids first; a finer one has to beat them outright to be chosen.
+  const steps = [...new Set([per, Math.floor(per / 2), 1])].filter((s) => s >= 1);
   let best: string[] | null = null;
   let bestCoverage = 0;
 
-  for (let L = 2; L <= Math.min(MAX_LOOP_BARS, Math.floor(n / 2)); L++) {
-    for (let phase = 0; phase < L; phase++) {
-      const counts = new Map<string, number>();
-      for (let i = phase; i + L <= n; i += L) {
-        const window = bars.slice(i, i + L);
-        if (window.some((c) => isNoChord(c))) continue;
-        const key2 = window.join("|");
-        counts.set(key2, (counts.get(key2) ?? 0) + 1);
-      }
-      for (const [k, count] of counts) {
-        if (count < 2) continue;
-        const window = k.split("|");
-        if (isRepeatedCycle(window) || isDominatedByOneChord(window)) continue;
-        const coverage = (count * L) / n;
-        if (coverage > bestCoverage) {
-          bestCoverage = coverage;
-          best = window;
-        }
+  for (const step of steps) {
+    const maxLen = Math.max(2, Math.round((MAX_LOOP_BARS * per) / step));
+    for (let offset = 0; offset < step; offset++) {
+      const grid = steppedGrid(beatTimes, step, offset);
+      if (grid.length < 5) continue;
+      const found = findLoop(quantize(denoised, grid), maxLen);
+      if (found && found.coverage > bestCoverage) {
+        bestCoverage = found.coverage;
+        best = found.window;
       }
     }
   }
 
   if (!best || bestCoverage < MIN_COVERAGE) return null;
-  return bestRotation(best, key);
+  return bestRotation(normalizeRuns(best), key);
 }
