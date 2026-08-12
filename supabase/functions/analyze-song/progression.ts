@@ -235,38 +235,64 @@ function steppedGrid(beatTimes: number[], step: number, offset: number): number[
   return out;
 }
 
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
+/**
+ * Regroup a loop into bars and collapse each bar's repeats: a chord held right
+ * through a bar is one entry, two chords sharing a bar are two. A chord held
+ * across bar lines keeps one entry per bar, which is how players count it —
+ * "E Bm A E" for a two-bar E, but "Em C G" when C and G split a bar.
+ */
+function toBars(window: string[], slotsPerBar: number): string[][] {
+  if (slotsPerBar <= 1) return window.map((c) => [c]);
+  const bars: string[][] = [];
+  for (let i = 0; i < window.length; i += slotsPerBar) {
+    const bar: string[] = [];
+    for (const chord of window.slice(i, i + slotsPerBar)) {
+      if (bar[bar.length - 1] !== chord) bar.push(chord);
+    }
+    bars.push(bar);
+  }
+  return bars;
 }
 
-/**
- * Express a loop at its own resolution. Found on a beat grid, a one-chord-per-bar
- * loop arrives as "E E E E Bm Bm Bm Bm …"; every run divides by four, so it is
- * really "E Bm A E". A genuine two-bar hold (runs of 2, 1, 1) has no common
- * divisor and is left alone.
- */
-function normalizeRuns(window: string[]): string[] {
-  const runs: { chord: string; count: number }[] = [];
-  for (const chord of window) {
-    const last = runs[runs.length - 1];
-    if (last && last.chord === chord) last.count++;
-    else runs.push({ chord, count: 1 });
+/** Chords carrying a real share of the song — a progression that omits one is incomplete. */
+const SIGNIFICANT_SHARE = 0.1;
+
+function significantChords(spans: ChordSpan[]): Set<string> {
+  const totals = new Map<string, number>();
+  let total = 0;
+  for (const [start, end, chord] of spans) {
+    if (isNoChord(chord)) continue;
+    const dur = Math.max(end - start, 0);
+    totals.set(chord, (totals.get(chord) ?? 0) + dur);
+    total += dur;
   }
-  let divisor = runs[0].count;
-  for (const run of runs) divisor = gcd(divisor, run.count);
-  if (divisor <= 1) return window;
-  const out: string[] = [];
-  for (const run of runs) {
-    for (let i = 0; i < run.count / divisor; i++) out.push(run.chord);
+  const out = new Set<string>();
+  if (total <= 0) return out;
+  for (const [chord, dur] of totals) {
+    if (dur / total >= SIGNIFICANT_SHARE) out.add(chord);
   }
   return out;
 }
 
-/** Best repeating window in a slot sequence, scored by how much of it they tile. */
-function findLoop(slots: string[], maxLen: number): { window: string[]; coverage: number } | null {
+interface Candidate {
+  window: string[];
+  coverage: number;
+}
+
+/**
+ * Best repeating windows in a slot sequence, scored by how much of it they tile.
+ * Returns the best overall and the best that still names every significant
+ * chord — a grid coarse enough to swallow a one-beat chord tiles beautifully
+ * while quietly losing that chord, so completeness has to be tracked separately.
+ */
+function findLoop(
+  slots: string[],
+  maxLen: number,
+  significant: Set<string>,
+): { best: Candidate | null; complete: Candidate | null } {
   const n = slots.length;
-  let best: string[] | null = null;
-  let bestCoverage = 0;
+  let best: Candidate | null = null;
+  let complete: Candidate | null = null;
   for (let L = 2; L <= Math.min(maxLen, Math.floor(n / 2)); L++) {
     for (let phase = 0; phase < L; phase++) {
       const counts = new Map<string, number>();
@@ -281,14 +307,15 @@ function findLoop(slots: string[], maxLen: number): { window: string[]; coverage
         const window = k.split("|");
         if (isRepeatedCycle(window) || isDominatedByOneChord(window)) continue;
         const coverage = (count * L) / n;
-        if (coverage > bestCoverage) {
-          bestCoverage = coverage;
-          best = window;
+        if (!best || coverage > best.coverage) best = { window, coverage };
+        if (!complete || coverage > complete.coverage) {
+          const present = new Set(window);
+          if ([...significant].every((c) => present.has(c))) complete = { window, coverage };
         }
       }
     }
   }
-  return best ? { window: best, coverage: bestCoverage } : null;
+  return { best, complete };
 }
 
 /** Is `window` just a shorter cycle written out several times? */
@@ -311,19 +338,43 @@ const ROOT_OF = (chord: string) => chord.split(":")[0];
  * "E Bm A E" (the E lands on the last bar and rings into the repeat), never
  * "E E Bm A".
  */
-function bestRotation(window: string[], key: string | null | undefined): string[] {
+function bestRotation(bars: string[][], key: string | null | undefined): string[] {
   const tonic = (key ?? "").trim().split(/\s+/)[0];
-  let best = window;
+  const base = bars.flat();
+
+  // Candidates: rotate whole bars (keeps the bar grouping intact), plus start
+  // on the tonic wherever it falls — when the harmonic rhythm is half a bar the
+  // tonic can sit mid-bar, and players still count the loop from it.
+  const candidates: { flat: string[]; barAligned: boolean; index: number }[] = [];
+  for (let r = 0; r < bars.length; r++) {
+    candidates.push({
+      flat: [...bars.slice(r), ...bars.slice(0, r)].flat(),
+      barAligned: true,
+      index: r,
+    });
+  }
+  if (tonic) {
+    for (let i = 0; i < base.length; i++) {
+      if (ROOT_OF(base[i]) !== tonic) continue;
+      candidates.push({
+        flat: [...base.slice(i), ...base.slice(0, i)],
+        barAligned: false,
+        index: i,
+      });
+    }
+  }
+
+  let best = base;
   let bestScore = -Infinity;
-  for (let r = 0; r < window.length; r++) {
-    const rot = [...window.slice(r), ...window.slice(0, r)];
+  for (const { flat, barAligned, index } of candidates) {
     let score = 0;
-    if (tonic && ROOT_OF(rot[0]) === tonic) score += 4;
-    if (rot[0] !== rot[1]) score += 2; // doesn't start mid-held-chord
-    score -= r * 0.01; // ties go to the earliest reading
+    if (tonic && ROOT_OF(flat[0]) === tonic) score += 4;
+    if (flat[0] !== flat[1]) score += 2; // doesn't start mid-held-chord
+    if (barAligned) score += 1; // prefer the reading that keeps bar lines
+    score -= index * 0.01; // ties go to the earliest reading
     if (score > bestScore) {
       bestScore = score;
-      best = rot;
+      best = flat;
     }
   }
   return best;
@@ -370,23 +421,38 @@ export function mainProgression(
   const denoised = dropArtifactChords(mergeAdjacent(timeline), barSeconds);
 
   // Coarse grids first; a finer one has to beat them outright to be chosen.
+  const significant = significantChords(denoised);
   const steps = [...new Set([per, Math.floor(per / 2), 1])].filter((s) => s >= 1);
-  let best: string[] | null = null;
-  let bestCoverage = 0;
+  let best: Candidate | null = null;
+  let bestStep = per;
+  let complete: Candidate | null = null;
+  let completeStep = per;
 
   for (const step of steps) {
     const maxLen = Math.max(2, Math.round((MAX_LOOP_BARS * per) / step));
     for (let offset = 0; offset < step; offset++) {
       const grid = steppedGrid(beatTimes, step, offset);
       if (grid.length < 5) continue;
-      const found = findLoop(quantize(denoised, grid), maxLen);
-      if (found && found.coverage > bestCoverage) {
-        bestCoverage = found.coverage;
-        best = found.window;
+      const found = findLoop(quantize(denoised, grid), maxLen, significant);
+      if (found.best && (!best || found.best.coverage > best.coverage)) {
+        best = found.best;
+        bestStep = step;
+      }
+      if (found.complete && (!complete || found.complete.coverage > complete.coverage)) {
+        complete = found.complete;
+        completeStep = step;
       }
     }
   }
 
-  if (!best || bestCoverage < MIN_COVERAGE) return null;
-  return bestRotation(normalizeRuns(best), key);
+  // A loop that names every significant chord beats a tidier one that drops a
+  // chord the song leans on — but only if it still explains enough of the song.
+  // Otherwise fall back to whatever tiles best.
+  const useComplete = !!complete && complete.coverage >= MIN_COVERAGE;
+  const chosen = useComplete ? complete : best;
+  const step = useComplete ? completeStep : bestStep;
+  if (!chosen || chosen.coverage < MIN_COVERAGE) return null;
+
+  const slotsPerBar = Math.max(1, Math.round(per / step));
+  return bestRotation(toBars(chosen.window, slotsPerBar), key);
 }
