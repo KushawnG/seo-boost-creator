@@ -142,11 +142,56 @@ function mergeAdjacent(spans: ChordSpan[]): ChordSpan[] {
   return out;
 }
 
+const PITCH_CLASS: Record<string, number> = {
+  C: 0, "B#": 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, Fb: 4,
+  "E#": 5, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10,
+  Bb: 10, B: 11, Cb: 11,
+};
+
+/** maj7/7/min7/… reduced to the triad quality that decides diatonic fit. */
+function triadQuality(suffix: string | undefined): string {
+  if (!suffix) return "maj";
+  if (suffix.startsWith("min")) return "min";
+  if (suffix.startsWith("dim")) return "dim";
+  return "maj";
+}
+
+/** The seven triads of a key, as "<pitchClass>:<quality>". */
+function diatonicSet(key: string | null | undefined): Set<string> | null {
+  const m = (key ?? "").trim().match(/^([A-G][b#]?)\s+(major|minor)$/i);
+  if (!m) return null;
+  const rootPc = PITCH_CLASS[m[1]];
+  if (rootPc === undefined) return null;
+  const major = m[2].toLowerCase() === "major";
+  const steps = major ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10];
+  const qualities = major
+    ? ["maj", "min", "min", "maj", "maj", "min", "dim"]
+    : ["min", "dim", "maj", "min", "min", "maj", "maj"];
+  return new Set(steps.map((step, i) => `${(rootPc + step) % 12}:${qualities[i]}`));
+}
+
+function isDiatonic(chord: string, set: Set<string> | null): boolean {
+  if (!set) return true; // unknown key — don't second-guess anything
+  const [root, suffix] = chord.split(":");
+  const pc = PITCH_CLASS[root];
+  if (pc === undefined) return true;
+  return set.has(`${pc}:${triadQuality(suffix)}`);
+}
+
 // A chord that never once holds for a full bar and barely occupies the song is
 // a detection artifact, not something anybody played.
 const NOISE_SHARE = 0.02;
+// Chords from outside the key get a harder look: a rare one is usually a
+// misread of an inversion or an extension (Post Malone's "Circles" plays G/B,
+// and the B in the bass comes back as a stray Bm). A genuine borrowed chord
+// earns its place by being used enough to clear this bar.
+const OUT_OF_KEY_SHARE = 0.05;
 
-function dropArtifactChords(spans: ChordSpan[], barSeconds: number): ChordSpan[] {
+function dropArtifactChords(
+  spans: ChordSpan[],
+  barSeconds: number,
+  key?: string | null,
+): ChordSpan[] {
   if (spans.length < 3) return spans;
   const total = spans.reduce((sum, [s, e]) => sum + (e - s), 0);
   const stats = new Map<string, { total: number; longest: number }>();
@@ -157,10 +202,16 @@ function dropArtifactChords(spans: ChordSpan[], barSeconds: number): ChordSpan[]
     st.longest = Math.max(st.longest, dur);
     stats.set(chord, st);
   }
+  const diatonic = diatonicSet(key);
   const isArtifact = (chord: string) => {
     if (isNoChord(chord)) return false;
     const st = stats.get(chord);
     if (!st) return false;
+    if (!isDiatonic(chord, diatonic)) {
+      // Two bars of it somewhere means it was really played; anything less at
+      // this share is a misheard inversion or extension.
+      return st.total < total * OUT_OF_KEY_SHARE && st.longest < barSeconds * 2;
+    }
     return st.longest < barSeconds * 0.95 && st.total < total * NOISE_SHARE;
   };
   if (![...stats.keys()].some(isArtifact)) return spans;
@@ -202,6 +253,7 @@ export function cleanTimeline(
   beats: Beat[] | null | undefined,
   bpm: number | null | undefined,
   timeSignature?: string | null,
+  key?: string | null,
 ): ChordSpan[] {
   if (timeline.length < 3) return timeline;
   const startTime = timeline[0][0];
@@ -209,7 +261,11 @@ export function cleanTimeline(
   const grid = beatGrid(beats, bpm, startTime, endTime);
   if (grid.length < 4) return timeline;
   const barSeconds = (beatsPerBar(timeSignature) * 60) / (bpm || DEFAULT_BPM);
-  const cleaned = dropArtifactChords(slotsToSpans(quantize(timeline, grid), grid), barSeconds);
+  const cleaned = dropArtifactChords(
+    slotsToSpans(quantize(timeline, grid), grid),
+    barSeconds,
+    key,
+  );
   return cleaned.length ? cleaned : timeline;
 }
 
@@ -418,7 +474,7 @@ export function mainProgression(
 
   const per = beatsPerBar(timeSignature);
   const barSeconds = (per * 60) / (bpm || DEFAULT_BPM);
-  const denoised = dropArtifactChords(mergeAdjacent(timeline), barSeconds);
+  const denoised = dropArtifactChords(mergeAdjacent(timeline), barSeconds, key);
 
   // Coarse grids first; a finer one has to beat them outright to be chosen.
   const significant = significantChords(denoised);

@@ -115,8 +115,8 @@ const AnalysisDetail = () => {
   // output is full of quarter-second chords nobody played, which reads as the
   // app being wrong.
   const timeline = useMemo(
-    () => cleanTimeline(rawTimeline, beats, analysis?.bpm, analysis?.time_signature),
-    [rawTimeline, beats, analysis?.bpm, analysis?.time_signature],
+    () => cleanTimeline(rawTimeline, beats, analysis?.bpm, analysis?.time_signature, analysis?.key),
+    [rawTimeline, beats, analysis?.bpm, analysis?.time_signature, analysis?.key],
   );
   const progression = useMemo(
     () => mainProgression(rawTimeline, beats, analysis?.bpm, analysis?.time_signature, analysis?.key),
