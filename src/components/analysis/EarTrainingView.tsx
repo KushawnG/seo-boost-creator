@@ -70,18 +70,28 @@ const selectClass =
 export const EarTrainingView = ({
   analysis,
   timeline,
+  progression,
   audioUrl,
   onReveal,
 }: {
   analysis: Analysis;
   timeline: ChordSpan[];
+  progression: string[] | null;
   audioUrl: string | undefined;
   onReveal: () => void;
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Targets = the song's main chords, in the order they first appear.
-  const targets = useMemo(() => mainChords(timeline, 4), [timeline]);
+  // Guess the loop the song actually repeats — in its real order. A chord held
+  // for two bars is one thing to hear, so back-to-back repeats collapse into a
+  // single slot; a chord that comes back later in the loop keeps its own slot,
+  // because recognising the return is the whole skill. Only when no loop could
+  // be found does this fall back to the most-played chords, which is a fuzzier
+  // target (it can include a chord from a one-off section).
+  const targets = useMemo(() => {
+    const loop = (progression ?? []).filter((chord, i, all) => i === 0 || chord !== all[i - 1]);
+    return loop.length >= 2 ? loop : mainChords(timeline, 4);
+  }, [progression, timeline]);
   const opening = useMemo(() => firstChord(timeline), [timeline]);
   const hasKey = !!parseKey(analysis.key);
 

@@ -229,6 +229,7 @@ const AnalysisDetail = () => {
         <EarTrainingView
           analysis={analysis}
           timeline={timeline}
+          progression={progression}
           audioUrl={audioUrl}
           onReveal={() => setEarRevealed(true)}
         />
