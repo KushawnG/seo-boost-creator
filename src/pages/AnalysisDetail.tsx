@@ -20,7 +20,8 @@ import {
   transposeChord,
   transposeKey,
 } from "@/lib/chords";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { ChevronRight, Minus, Plus, Repeat, RotateCcw } from "lucide-react";
+import { chordsInOrder, cleanTimeline, mainProgression } from "@/lib/progression";
 import { type Instrument, hasDiagram } from "@/lib/chord-shapes";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
@@ -102,7 +103,7 @@ const AnalysisDetail = () => {
     },
   });
 
-  const timeline = useMemo(
+  const rawTimeline = useMemo(
     () => (Array.isArray(analysis?.chords_timeline) ? (analysis!.chords_timeline as unknown as ChordSpan[]) : []),
     [analysis],
   );
@@ -110,6 +111,18 @@ const AnalysisDetail = () => {
     () => (Array.isArray(analysis?.beats) ? (analysis!.beats as unknown as Beat[]) : []),
     [analysis],
   );
+  // Snap the detection to the song's beat grid before showing it: raw Klangio
+  // output is full of quarter-second chords nobody played, which reads as the
+  // app being wrong.
+  const timeline = useMemo(
+    () => cleanTimeline(rawTimeline, beats, analysis?.bpm, analysis?.time_signature),
+    [rawTimeline, beats, analysis?.bpm, analysis?.time_signature],
+  );
+  const progression = useMemo(
+    () => mainProgression(rawTimeline, beats, analysis?.bpm, analysis?.time_signature, analysis?.key),
+    [rawTimeline, beats, analysis?.bpm, analysis?.time_signature, analysis?.key],
+  );
+  const songChords = useMemo(() => chordsInOrder(timeline), [timeline]);
   const beatsPerBar = useMemo(
     () => (beats.length ? Math.round(Math.max(...beats.map(([, p]) => p))) : 4),
     [beats],
@@ -450,6 +463,29 @@ const AnalysisDetail = () => {
         </Card>
       </div>
 
+      {/* The loop that carries the song — learn this and you can busk most of it */}
+      {progression && progression.length > 0 && (
+        <Card className="mt-6 border-primary/40">
+          <CardContent className="p-4">
+            <h2 className="mb-3 font-semibold">Main progression</h2>
+            <div className="flex flex-wrap items-center gap-x-1 gap-y-2">
+              {progression.map((chord, i) => (
+                <span key={`${chord}-${i}`} className="flex items-center gap-1">
+                  {i > 0 && <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                  <span className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-1.5 text-lg font-bold">
+                    {formatChordName(tc(chord))}
+                  </span>
+                </span>
+              ))}
+              <Repeat className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              These {progression.length} bars repeat through most of the song.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Chord timeline */}
       {timeline.length > 0 ? (
         <Card className="mt-6">
@@ -505,12 +541,12 @@ const AnalysisDetail = () => {
       )}
 
       {/* Chords used */}
-      {timeline.length > 0 && analysis.chords && analysis.chords.length > 0 && (
+      {timeline.length > 0 && songChords.length > 0 && (
         <Card className="mt-6">
           <CardContent className="p-4">
             <h2 className="mb-3 font-semibold">Chords in this song</h2>
             <div className="flex flex-wrap gap-2">
-              {analysis.chords.map((chord) => (
+              {songChords.map((chord) => (
                 <Badge key={chord} variant="outline" className="text-sm">
                   {formatChordName(tc(chord))}
                 </Badge>

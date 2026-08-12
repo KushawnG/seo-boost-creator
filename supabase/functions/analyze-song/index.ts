@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 import { analyzeAudio } from './klangio.ts';
+import { chordsInOrder, cleanTimeline, mainProgression } from './progression.ts';
 import { extractYouTubeId, fetchYouTubeAudio } from './youtube.ts';
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
@@ -142,6 +143,23 @@ async function processAnalysis(
 
     const result = await analyzeAudio(klangioApiKey, source.blob, source.filename);
 
+    // Klangio hears every passing flicker. Store the chord list and the
+    // repeating loop as a player would read them, snapped to the song's beat
+    // grid — the raw timeline stays untouched for playback accuracy.
+    const cleaned = cleanTimeline(
+      result.chordsTimeline,
+      result.beats,
+      result.bpm,
+      result.timeSignature,
+    );
+    const progression = mainProgression(
+      result.chordsTimeline,
+      result.beats,
+      result.bpm,
+      result.timeSignature,
+      result.key,
+    );
+
     const { error: updateError } = await supabase
       .from('song_analysis')
       .update({
@@ -149,9 +167,10 @@ async function processAnalysis(
         key: result.key,
         bpm: result.bpm,
         time_signature: result.timeSignature,
-        chords: result.chords,
+        chords: chordsInOrder(cleaned).length ? chordsInOrder(cleaned) : result.chords,
         chords_timeline: result.chordsTimeline,
         beats: result.beats,
+        main_progression: progression,
         error_message: null,
       })
       .eq('id', analysis.id);
