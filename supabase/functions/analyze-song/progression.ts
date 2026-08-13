@@ -386,48 +386,24 @@ function isRepeatedCycle(window: string[]): boolean {
   return false;
 }
 
-const ROOT_OF = (chord: string) => chord.split(":")[0];
-
 /**
  * Pick where the loop starts. Players count a progression from the tonic and
  * never from the middle of a held chord: a two-bar E at the seam reads as
  * "E Bm A E" (the E lands on the last bar and rings into the repeat), never
  * "E E Bm A".
  */
-function bestRotation(bars: string[][], key: string | null | undefined): string[] {
-  const tonic = (key ?? "").trim().split(/\s+/)[0];
-  const base = bars.flat();
-
-  // Candidates: rotate whole bars (keeps the bar grouping intact), plus start
-  // on the tonic wherever it falls — when the harmonic rhythm is half a bar the
-  // tonic can sit mid-bar, and players still count the loop from it.
-  const candidates: { flat: string[]; barAligned: boolean; index: number }[] = [];
-  for (let r = 0; r < bars.length; r++) {
-    candidates.push({
-      flat: [...bars.slice(r), ...bars.slice(0, r)].flat(),
-      barAligned: true,
-      index: r,
-    });
-  }
-  if (tonic) {
-    for (let i = 0; i < base.length; i++) {
-      if (ROOT_OF(base[i]) !== tonic) continue;
-      candidates.push({
-        flat: [...base.slice(i), ...base.slice(0, i)],
-        barAligned: false,
-        index: i,
-      });
-    }
-  }
-
-  let best = base;
+function bestRotation(bars: string[][]): string[] {
+  // The tiling search already found where the loop starts in the recording, and
+  // that is what tutorials teach — Bellyache is written C-Am-Em-Em even though
+  // it's in E minor. So keep the detected order and only shift it when it would
+  // otherwise open in the middle of a held chord ("E E Bm A" -> "E Bm A E").
+  let best = bars.flat();
   let bestScore = -Infinity;
-  for (const { flat, barAligned, index } of candidates) {
+  for (let r = 0; r < bars.length; r++) {
+    const flat = [...bars.slice(r), ...bars.slice(0, r)].flat();
     let score = 0;
-    if (tonic && ROOT_OF(flat[0]) === tonic) score += 4;
-    if (flat[0] !== flat[1]) score += 2; // doesn't start mid-held-chord
-    if (barAligned) score += 1; // prefer the reading that keeps bar lines
-    score -= index * 0.01; // ties go to the earliest reading
+    if (flat[0] !== flat[1]) score += 2;
+    score -= r * 0.01; // otherwise keep the order the song plays it in
     if (score > bestScore) {
       bestScore = score;
       best = flat;
@@ -510,5 +486,5 @@ export function mainProgression(
   if (!chosen || chosen.coverage < MIN_COVERAGE) return null;
 
   const slotsPerBar = Math.max(1, Math.round(per / step));
-  return bestRotation(toBars(chosen.window, slotsPerBar), key);
+  return bestRotation(toBars(chosen.window, slotsPerBar));
 }
