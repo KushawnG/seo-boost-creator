@@ -22,6 +22,34 @@ const PLAN_BY_PRICE: Record<string, { plan: string; credits: number }> = {
 
 const FREE_PLAN = { plan: 'free', credits: 3 };
 
+/** Raised when an event isn't ours to act on — acknowledged, never retried. */
+class NotOurEvent extends Error {}
+
+function toIso(seconds: unknown): string | null {
+  return typeof seconds === 'number' && Number.isFinite(seconds)
+    ? new Date(seconds * 1000).toISOString()
+    : null;
+}
+
+// Stripe moved current_period_start/end off the subscription and onto its items
+// (API 2026-06-24). Reading only the old location threw "Invalid time value" on
+// every renewal event, which Stripe retried for days before threatening to
+// disable the endpoint. Accept both shapes so an API bump can't do that again.
+function billingPeriod(subscription: Stripe.Subscription): { start: string | null; end: string | null } {
+  const legacy = subscription as unknown as {
+    current_period_start?: number;
+    current_period_end?: number;
+  };
+  const item = subscription.items?.data?.[0] as unknown as {
+    current_period_start?: number;
+    current_period_end?: number;
+  } | undefined;
+  return {
+    start: toIso(legacy.current_period_start ?? item?.current_period_start),
+    end: toIso(legacy.current_period_end ?? item?.current_period_end),
+  };
+}
+
 Deno.serve(async (req) => {
   const signature = req.headers.get('stripe-signature');
   if (!signature) {
@@ -63,7 +91,7 @@ Deno.serve(async (req) => {
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata.supabaseUid;
-        if (!userId) throw new Error('No Supabase user ID in metadata');
+        if (!userId) throw new NotOurEvent('Subscription has no supabaseUid');
 
         const { error } = await supabase
           .from('subscriptions')
@@ -92,10 +120,24 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Webhook error';
+
+    // Nothing to act on — acknowledge it. Returning an error here makes Stripe
+    // redeliver the same event for days and then disable the endpoint.
+    if (error instanceof NotOurEvent) {
+      console.log('Ignoring event that is not ours:', message);
+      return new Response(JSON.stringify({ received: true, ignored: message }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
+    // A bad signature is a configuration problem Stripe should surface; anything
+    // else may be transient, so ask for a retry rather than swallowing it.
+    const isSignature = /signature|timestamp/i.test(message);
     console.error('Error processing webhook:', message);
     return new Response(JSON.stringify({ error: message }), {
       headers: { 'Content-Type': 'application/json' },
-      status: 400,
+      status: isSignature ? 400 : 500,
     });
   }
 });
@@ -105,8 +147,9 @@ async function applySubscription(
   options: { refillCredits?: boolean } = {},
 ): Promise<void> {
   const userId = subscription.metadata.supabaseUid;
-  if (!userId) throw new Error('No Supabase user ID in metadata');
+  if (!userId) throw new NotOurEvent('Subscription has no supabaseUid');
 
+  const period = billingPeriod(subscription);
   const priceId = subscription.items.data[0]?.price.id ?? '';
   const planInfo = PLAN_BY_PRICE[priceId] ?? FREE_PLAN;
 
@@ -132,8 +175,8 @@ async function applySubscription(
         stripe_customer_id: subscription.customer as string,
         stripe_subscription_id: subscription.id,
         stripe_price_id: priceId,
-        current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
-        current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+        current_period_start: period.start,
+        current_period_end: period.end,
         cancel_at_period_end: subscription.cancel_at_period_end,
         status: subscription.status === 'active' || subscription.status === 'trialing'
           ? 'active'
