@@ -3,10 +3,15 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 export interface PlayerHandle {
   getCurrentTime: () => number;
   seekTo: (seconds: number) => void;
+  setPlaybackRate: (rate: number) => void;
 }
 
 interface YouTubePlayerProps {
   videoId: string;
+  /** Repeat the video forever — ear training listens over and over. */
+  loop?: boolean;
+  /** Applied once the player is ready, and whenever it changes. */
+  playbackRate?: number;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -33,9 +38,19 @@ function loadIframeApi(): Promise<any> {
 }
 
 export const YouTubePlayer = forwardRef<PlayerHandle, YouTubePlayerProps>(
-  ({ videoId }, ref) => {
+  ({ videoId, loop = false, playbackRate = 1 }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<any>(null);
+    const rateRef = useRef(playbackRate);
+    rateRef.current = playbackRate;
+
+    const applyRate = (rate: number) => {
+      try {
+        playerRef.current?.setPlaybackRate?.(rate);
+      } catch {
+        // player not ready yet
+      }
+    };
 
     useImperativeHandle(ref, () => ({
       getCurrentTime: () => {
@@ -53,6 +68,7 @@ export const YouTubePlayer = forwardRef<PlayerHandle, YouTubePlayerProps>(
           // player not ready yet
         }
       },
+      setPlaybackRate: applyRate,
     }));
 
     useEffect(() => {
@@ -64,7 +80,15 @@ export const YouTubePlayer = forwardRef<PlayerHandle, YouTubePlayerProps>(
           videoId,
           width: "100%",
           height: "100%",
-          playerVars: { rel: 0, playsinline: 1 },
+          // looping a single video needs it declared as its own playlist
+          playerVars: {
+            rel: 0,
+            playsinline: 1,
+            ...(loop ? { loop: 1, playlist: videoId } : {}),
+          },
+          events: {
+            onReady: () => applyRate(rateRef.current),
+          },
         });
       });
 
@@ -77,7 +101,11 @@ export const YouTubePlayer = forwardRef<PlayerHandle, YouTubePlayerProps>(
         }
         playerRef.current = null;
       };
-    }, [videoId]);
+    }, [videoId, loop]);
+
+    useEffect(() => {
+      applyRate(playbackRate);
+    }, [playbackRate]);
 
     return (
       <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">

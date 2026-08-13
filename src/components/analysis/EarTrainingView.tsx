@@ -283,19 +283,20 @@ export const EarTrainingView = ({
             <EarTrainingToggle />
             {analysis.bpm && <Badge variant="secondary">{analysis.bpm} BPM</Badge>}
           </div>
-          {audioUrl ? (
+          {analysis.youtube_id ? (
+            <>
+              <YouTubePlayer videoId={analysis.youtube_id} loop />
+              <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                <Repeat className="h-3 w-3" /> The video repeats automatically — listen as many
+                times as you need.
+              </p>
+            </>
+          ) : audioUrl ? (
             <>
               <audio ref={audioRef} src={audioUrl} controls loop className="w-full" />
               <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                 <Repeat className="h-3 w-3" /> The song loops automatically — listen as many times
                 as you need.
-              </p>
-            </>
-          ) : analysis.youtube_id ? (
-            <>
-              <YouTubePlayer videoId={analysis.youtube_id} />
-              <p className="mt-2 text-xs text-muted-foreground">
-                Replay the video as many times as you need.
               </p>
             </>
           ) : (

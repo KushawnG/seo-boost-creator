@@ -290,7 +290,7 @@ const AnalysisDetail = () => {
 
       {/* Practice controls */}
       <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-        {analysis.file_path && (
+        {(analysis.youtube_id || analysis.file_path) && (
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted-foreground">Speed</span>
             <select
@@ -369,23 +369,22 @@ const AnalysisDetail = () => {
         {/* Player */}
         <Card>
           <CardContent className="p-4">
-            {/* Prefer the stored audio (enables speed control) over the YouTube embed */}
-            {analysis.file_path ? (
-              audioUrl ? (
-                <div className="flex h-full min-h-[120px] flex-col justify-center gap-3">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Music className="h-5 w-5" />
-                    <span className="truncate">{analysis.title}</span>
-                  </div>
-                  <audio ref={audioRef} src={audioUrl} controls className="w-full" />
+            {/* Watching the video while the chords move is the whole appeal, so
+                the embed wins whenever we have one; stored audio is for uploads. */}
+            {analysis.youtube_id ? (
+              <YouTubePlayer
+                ref={youtubeRef}
+                videoId={analysis.youtube_id}
+                playbackRate={speed}
+              />
+            ) : audioUrl ? (
+              <div className="flex h-full min-h-[120px] flex-col justify-center gap-3">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Music className="h-5 w-5" />
+                  <span className="truncate">{analysis.title}</span>
                 </div>
-              ) : (
-                <div className="flex min-h-[120px] items-center justify-center text-muted-foreground">
-                  Loading audio...
-                </div>
-              )
-            ) : analysis.youtube_id ? (
-              <YouTubePlayer ref={youtubeRef} videoId={analysis.youtube_id} />
+                <audio ref={audioRef} src={audioUrl} controls className="w-full" />
+              </div>
             ) : (
               <div className="flex min-h-[120px] items-center justify-center text-muted-foreground">
                 Loading audio...
