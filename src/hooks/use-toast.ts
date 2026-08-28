@@ -194,6 +194,12 @@ function toast({ ...props }: Toast) {
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
+  // Subscribe once. The starter re-subscribes on every state change, which
+  // leaves a gap between the cleanup and the re-add — a dispatch landing in
+  // that gap (exactly where the auto-remove does) updates the store but never
+  // re-renders, so a dismissed toast stays on screen until something else
+  // happens to render. That is why these pop-ups appeared to hang around
+  // forever even after Radix had closed them.
   React.useEffect(() => {
     listeners.push(setState)
     return () => {
@@ -202,7 +208,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, [])
 
   return {
     ...state,
