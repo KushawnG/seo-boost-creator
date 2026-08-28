@@ -240,6 +240,43 @@ function dropArtifactChords(
 }
 
 /**
+ * Absorb chords that flash past mid-chord. A span of a single beat bracketed by
+ * the same chord on both sides — C for four bars with one beat of Gm in the
+ * middle — is the detector wobbling, not a change anyone played, so it gets
+ * handed back to the chord it interrupted.
+ *
+ * Deliberately narrow: a one-beat chord sitting between two DIFFERENT chords is
+ * left alone, because plenty of progressions move that fast (Suga Dumplin's loop
+ * really is Em - C - G with C on a single beat). Duration alone can't tell those
+ * apart — at 207bpm a whole bar is barely a second — so the giveaway is the
+ * chord either side being identical.
+ */
+function dropWobbles(spans: ChordSpan[], beatSeconds: number): ChordSpan[] {
+  if (spans.length < 3 || !(beatSeconds > 0)) return spans;
+  const out: ChordSpan[] = [[...spans[0]] as ChordSpan];
+  for (let i = 1; i < spans.length; i++) {
+    const span = spans[i];
+    const prev = out[out.length - 1];
+    const next = spans[i + 1];
+    const duration = span[1] - span[0];
+    const bracketed =
+      !!next && prev[2] === next[2] && !isNoChord(prev[2]) && !isNoChord(span[2]);
+
+    const wobble =
+      (bracketed && duration <= beatSeconds * 1.05) ||
+      // Anything under half a beat was never played on purpose.
+      (!isNoChord(span[2]) && duration < beatSeconds * 0.5);
+
+    if (wobble) {
+      prev[1] = span[1];
+      continue;
+    }
+    out.push([...span] as ChordSpan);
+  }
+  return mergeAdjacent(out);
+}
+
+/**
  * The timeline as a musician would write it: every chord snapped to the beat it
  * lands on, flickers dropped, repeats merged. Falls back to the raw timeline if
  * there's no usable grid.
@@ -257,10 +294,10 @@ export function cleanTimeline(
   const grid = beatGrid(beats, bpm, startTime, endTime);
   if (grid.length < 4) return timeline;
   const barSeconds = (beatsPerBar(timeSignature) * 60) / (bpm || DEFAULT_BPM);
-  const cleaned = dropArtifactChords(
-    slotsToSpans(quantize(timeline, grid), grid),
-    barSeconds,
-    key,
+  const beatSeconds = 60 / (bpm || DEFAULT_BPM);
+  const cleaned = dropWobbles(
+    dropArtifactChords(slotsToSpans(quantize(timeline, grid), grid), barSeconds, key),
+    beatSeconds,
   );
   return cleaned.length ? cleaned : timeline;
 }
@@ -446,7 +483,10 @@ export function mainProgression(
 
   const per = beatsPerBar(timeSignature);
   const barSeconds = (per * 60) / (bpm || DEFAULT_BPM);
-  const denoised = dropArtifactChords(mergeAdjacent(timeline), barSeconds, key);
+  const denoised = dropWobbles(
+    dropArtifactChords(mergeAdjacent(timeline), barSeconds, key),
+    60 / (bpm || DEFAULT_BPM),
+  );
 
   // Coarse grids first; a finer one has to beat them outright to be chosen.
   const significant = significantChords(denoised);

@@ -6,7 +6,13 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+// How long a toast sits on screen before dismissing itself. The shadcn starter
+// ships 1,000,000ms here and no auto-dismiss at all, so every toast stayed up
+// until you clicked it away. Six seconds is comfortable reading time for a
+// title plus a sentence, and the close button is still there for impatient taps.
+const TOAST_AUTO_DISMISS = 6000
+// Long enough for the slide-out animation, then it leaves the store.
+const TOAST_REMOVE_DELAY = 400
 
 type ToasterToast = ToastProps & {
   id: string
@@ -54,8 +60,24 @@ interface State {
 }
 
 const toastTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const dismissTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** Auto-dismiss so a toast can never linger. `duration: 0` opts out. */
+const scheduleDismiss = (toastId: string, duration = TOAST_AUTO_DISMISS) => {
+  clearTimeout(dismissTimeouts.get(toastId))
+  if (duration <= 0) return
+  dismissTimeouts.set(
+    toastId,
+    setTimeout(() => {
+      dismissTimeouts.delete(toastId)
+      dispatch({ type: "DISMISS_TOAST", toastId })
+    }, duration),
+  )
+}
 
 const addToRemoveQueue = (toastId: string) => {
+  clearTimeout(dismissTimeouts.get(toastId))
+  dismissTimeouts.delete(toastId)
   if (toastTimeouts.has(toastId)) {
     return
   }
@@ -160,6 +182,7 @@ function toast({ ...props }: Toast) {
       },
     },
   })
+  scheduleDismiss(id, props.duration)
 
   return {
     id: id,
