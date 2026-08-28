@@ -70,7 +70,11 @@ const scheduleDismiss = (toastId: string, duration = TOAST_AUTO_DISMISS) => {
     toastId,
     setTimeout(() => {
       dismissTimeouts.delete(toastId)
+      // Close it (plays the exit animation), then take it out of the DOM
+      // ourselves. Leaving removal to the DISMISS handler alone meant a toast
+      // could sit there fully opaque once the animation had finished.
       dispatch({ type: "DISMISS_TOAST", toastId })
+      setTimeout(() => dispatch({ type: "REMOVE_TOAST", toastId }), TOAST_REMOVE_DELAY)
     }, duration),
   )
 }
