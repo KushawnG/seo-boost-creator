@@ -25,3 +25,10 @@ dist-ssr
 
 # Claude Code local config
 .claude/
+
+# Local env files — never commit these. The repo is public, and although the
+# only value here today is the Supabase anon key (public by design), an
+# untracked-by-default .env means the next secret added can't leak by accident.
+.env
+.env.*
+!.env.example
