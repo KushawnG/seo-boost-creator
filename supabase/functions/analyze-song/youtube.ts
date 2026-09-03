@@ -39,6 +39,23 @@ function isGeoBlocked(reason: string): boolean {
   return /proxy country|not available in|region/i.test(reason);
 }
 
+// YouTube blocks individual proxy exit IPs, and the actor says so plainly:
+// "CDN blocked this proxy IP during download. Retry now (usually gets a fresh
+// IP)". Same story for Apify's own 5xx. These were being reported to users as
+// dead ends when simply going again would most likely have worked.
+function isTransient(reason: string): boolean {
+  return /blocked this proxy|cdn blocked|fresh ip|rate limit|too many requests|timed? ?out|temporarily|\b(429|500|502|503|504)\b|bad gateway|connection|socket|network/i
+    .test(reason);
+}
+
+// Extraction runs inside a background task, so it can't retry forever — Klangio
+// still needs its turn, and a worker that overruns is killed silently, which is
+// how analyses end up stuck on "Analyzing…".
+const MAX_APIFY_ATTEMPTS = 3;
+const APIFY_BUDGET_MS = 260_000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function runApifyActor(
   videoId: string,
   token: string,
@@ -95,25 +112,47 @@ async function fetchViaApify(videoId: string): Promise<{ result: ApifyResult | n
   const token = Deno.env.get('APIFY_TOKEN');
   if (!token) return { result: null, reason: 'Apify is not configured' };
 
+  const startedAt = Date.now();
   let lastReason = 'Apify returned no file';
-  for (const country of PROXY_COUNTRIES) {
+  let countryIndex = 0;
+
+  for (let attempt = 1; attempt <= MAX_APIFY_ATTEMPTS; attempt++) {
+    if (Date.now() - startedAt > APIFY_BUDGET_MS) {
+      console.warn('Apify budget exhausted, stopping retries:', lastReason);
+      break;
+    }
+    const country = PROXY_COUNTRIES[countryIndex];
+    let reason: string;
     try {
-      const { result, reason } = await runApifyActor(videoId, token, country);
-      if (result) {
+      const outcome = await runApifyActor(videoId, token, country);
+      if (outcome.result) {
         console.log('YouTube audio fetched via Apify:', {
           videoId,
           country,
-          bytes: result.blob.size,
+          attempt,
+          bytes: outcome.result.blob.size,
         });
-        return { result, reason: 'ok' };
+        return { result: outcome.result, reason: 'ok' };
       }
-      lastReason = reason;
-      console.warn(`Apify failed via ${country}:`, reason);
-      if (!isGeoBlocked(reason)) break;
+      reason = outcome.reason;
     } catch (error) {
-      lastReason = error instanceof Error ? error.message : String(error);
-      console.warn(`Apify error via ${country}:`, lastReason);
+      reason = error instanceof Error ? error.message : String(error);
     }
+    lastReason = reason;
+    console.warn(`Apify attempt ${attempt} via ${country} failed:`, reason);
+
+    if (isGeoBlocked(reason)) {
+      // The country was the problem — a retry there would fail identically.
+      countryIndex++;
+      if (countryIndex >= PROXY_COUNTRIES.length) break;
+      continue;
+    }
+    if (isTransient(reason)) {
+      // Same market, new run: the point is to land on a different exit IP.
+      await sleep(2000);
+      continue;
+    }
+    break; // genuinely unavailable — retrying changes nothing
   }
   return { result: null, reason: lastReason };
 }
@@ -238,6 +277,13 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   if (isGeoBlocked(reason)) {
     throw new Error(
       'This video is region-locked and we couldn\'t reach it from any of our locations. Please try another upload of the song, or upload the audio file instead.',
+    );
+  }
+  if (isTransient(reason)) {
+    // Already retried across fresh proxy IPs; the raw reason here is often an
+    // HTML error page, which is no use to anyone reading it in the dashboard.
+    throw new Error(
+      'YouTube blocked the download this time — that usually clears in a few minutes. Please try again shortly, or upload the audio file instead.',
     );
   }
   if (/unavailable|private|removed|age|restricted/i.test(reason)) {
