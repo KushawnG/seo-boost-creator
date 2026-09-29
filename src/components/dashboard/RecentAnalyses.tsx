@@ -8,6 +8,7 @@ import { Loader2, Play } from "lucide-react";
 import { formatChordName } from "@/lib/chords";
 import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
 import { cn } from "@/lib/utils";
+import { isInProgress, statusLabel } from "@/lib/analysis-status";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -31,7 +32,7 @@ export const RecentAnalyses = () => {
     },
     // Refresh while any analysis is still running
     refetchInterval: (query) =>
-      query.state.data?.some((a) => a.status === 'pending') ? 3000 : false,
+      query.state.data?.some((a) => isInProgress(a.status)) ? 3000 : false,
   });
 
   if (isLoading) {
@@ -61,12 +62,12 @@ export const RecentAnalyses = () => {
                 <div className="flex shrink-0 items-center gap-2">
                   {analysis.is_demo && <Badge variant="secondary">🎁 Free demo</Badge>}
                   <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
-                    {analysis.status}
+                    {statusLabel(analysis.status)}
                   </Badge>
                 </div>
               </div>
 
-              {analysis.status === 'pending' && (
+              {isInProgress(analysis.status) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Analyzing beats, key and chords...

@@ -23,14 +23,41 @@ const ALLOWED_AUDIO_TYPES = [
 
 const ALLOWED_FILE_EXTENSIONS = ['.mp3', '.wav', '.m4a', '.aac', '.ogg'] as const;
 
+// Server-side, fetching the audio and working out the chords run as two
+// separate jobs (neither fits in one worker's budget), and the analysis sits at
+// 'extracted' in between. Reporting that turns a blank two-minute spinner into
+// something that visibly moves.
+type Stage = 'pending' | 'extracted';
+
+const STAGE_MESSAGE: Record<Stage, string> = {
+  pending: "Fetching the song's audio — for YouTube links this is the slow part, usually a minute or two.",
+  extracted: 'Got the audio. Detecting the beats, key and chords — nearly there.',
+};
+
+// A stalled second leg is recoverable: re-invoking resumes from the audio we
+// already stored, so nudge it rather than making the user wait on the
+// server-side watchdog.
+const NUDGE_AFTER_MS = 75_000;
+
+// Past this the page stops waiting, but the analysis doesn't — the watchdog
+// finishes or fails it, and either way it lands in the user's history.
+const GIVE_UP_AFTER_MS = 7 * 60_000;
+
 export const AnalysisForm = () => {
   const [url, setUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
+  const [stage, setStage] = useState<Stage>('pending');
   const { toast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pollTimer = useRef<number | null>(null);
+  // Polling re-arms itself through setTimeout, so the loop's own bookkeeping
+  // lives in refs — state would be stale by the time the callback runs.
+  const pollStartedAt = useRef(0);
+  const stageSince = useRef(0);
+  const stageRef = useRef<Stage>('pending');
+  const nudged = useRef(false);
 
   // Pick up a song the visitor entered on the landing page before logging in,
   // and immediately analyze it so they land straight on their results.
@@ -92,11 +119,46 @@ export const AnalysisForm = () => {
       return;
     }
 
+    const current: Stage = data?.status === 'extracted' ? 'extracted' : 'pending';
+    if (current !== stageRef.current) {
+      stageRef.current = current;
+      stageSince.current = Date.now();
+      setStage(current);
+    }
+
+    // The audio is in hand but the chords never came back — resume it once.
+    // The server treats a repeat invoke as a resume, not a re-charge.
+    if (
+      current === 'extracted' &&
+      !nudged.current &&
+      Date.now() - stageSince.current > NUDGE_AFTER_MS
+    ) {
+      nudged.current = true;
+      void supabase.functions.invoke('analyze-song', { body: { analysisId } });
+    }
+
+    if (Date.now() - pollStartedAt.current > GIVE_UP_AFTER_MS) {
+      setActiveAnalysisId(null);
+      setIsSubmitting(false);
+      queryClient.invalidateQueries({ queryKey: ['recent-analyses'] });
+      toast({
+        title: "Still working on it",
+        description:
+          "This one's taking longer than usual. You can leave this page — it'll show up in your recent analyses when it's done.",
+      });
+      return;
+    }
+
     pollTimer.current = window.setTimeout(() => pollAnalysis(analysisId), 3000);
   };
 
   const startAnalysis = async (analysisId: string) => {
     setActiveAnalysisId(analysisId);
+    pollStartedAt.current = Date.now();
+    stageSince.current = Date.now();
+    stageRef.current = 'pending';
+    nudged.current = false;
+    setStage('pending');
     void logPractice(); // analyzing a song counts as a practice day
     queryClient.invalidateQueries({ queryKey: ['recent-analyses'] });
 
@@ -363,8 +425,8 @@ export const AnalysisForm = () => {
 
       {isSubmitting && activeAnalysisId && (
         <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Analyzing your song — detecting beats, key and chords. This usually takes about a minute.
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          {STAGE_MESSAGE[stage]}
         </div>
       )}
     </div>

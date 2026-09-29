@@ -30,6 +30,7 @@ import { EarTrainingView } from "@/components/analysis/EarTrainingView";
 import { EarTrainingToggle } from "@/components/EarTrainingToggle";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { isInProgress } from "@/lib/analysis-status";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -57,7 +58,7 @@ const AnalysisDetail = () => {
     },
     // Keep refreshing while the song is still being analyzed
     refetchInterval: (query) =>
-      query.state.data?.status === 'pending' ? 3000 : false,
+      isInProgress(query.state.data?.status) ? 3000 : false,
   });
 
   // Diagrams unlock for paid plans, OR on the free demo song — a taste of the feature.
@@ -196,7 +197,7 @@ const AnalysisDetail = () => {
     );
   }
 
-  if (analysis.status === 'pending') {
+  if (isInProgress(analysis.status)) {
     return (
       <PageShell title={analysis.title}>
         <Card>

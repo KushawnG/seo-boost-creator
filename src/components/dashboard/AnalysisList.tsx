@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { planFor } from "@/lib/plans";
 import { useSubscription } from "@/hooks/use-subscription";
 import { useEarTrainingMode } from "@/hooks/use-ear-training-mode";
+import { isInProgress, statusLabel } from "@/lib/analysis-status";
 
 type Analysis = Database['public']['Tables']['song_analysis']['Row'];
 
@@ -58,7 +59,7 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
     },
     // Refresh while any analysis is still running
     refetchInterval: (query) =>
-      query.state.data?.some((a) => a.status === 'pending') ? 3000 : false,
+      query.state.data?.some((a) => isInProgress(a.status)) ? 3000 : false,
   });
 
   const handleDelete = async (id: string) => {
@@ -137,7 +138,7 @@ export const AnalysisList = ({ showAll = false }: AnalysisListProps) => {
             <TableCell>{earMode ? '🎧' : (analysis.bpm || 'N/A')}</TableCell>
             <TableCell>
               <Badge variant={analysis.status === 'completed' ? 'default' : 'secondary'}>
-                {analysis.status}
+                {statusLabel(analysis.status)}
               </Badge>
             </TableCell>
             <TableCell>
