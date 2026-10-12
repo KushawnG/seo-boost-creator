@@ -106,12 +106,15 @@ async function main() {
     console.warn("prerender-songs: could not fetch songs:", e.message);
   }
 
+  // Write songs/<slug>.html, NOT songs/<slug>/index.html. Netlify serves the
+  // former directly at /songs/<slug>; the latter makes it 301 to a trailing
+  // slash, which would put a redirect in front of every page in the sitemap
+  // and disagree with the canonical URL we just set.
+  mkdirSync(join(DIST, "songs"), { recursive: true });
   let written = 0;
   for (const song of songs) {
     if (!song.slug) continue;
-    const dir = join(DIST, "songs", song.slug);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "index.html"), render(shell, song));
+    writeFileSync(join(DIST, "songs", `${song.slug}.html`), render(shell, song));
     written++;
   }
 
