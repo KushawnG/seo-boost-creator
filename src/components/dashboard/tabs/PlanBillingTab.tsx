@@ -15,6 +15,7 @@ import { CreditsProgress } from "../membership/CreditsProgress";
 import { CurrentPlan } from "../membership/CurrentPlan";
 import { PaymentMethodsList, type PaymentMethodInfo } from "../billing/PaymentMethodsList";
 import { BillingHistory, type InvoiceInfo } from "../billing/BillingHistory";
+import { functionErrorMessage } from "@/lib/function-error";
 
 type BillingInterval = "monthly" | "annual";
 
@@ -126,13 +127,19 @@ export const PlanBillingTab = () => {
       }
 
       const { data, error } = sessionResult;
-      if (error) throw error;
-      if (data?.url) window.location.href = data.url;
+      if (error || !data?.url) {
+        // supabase-js hides the server's message inside error.context, so
+        // without this the user is told "non-2xx status code" on a failed upgrade.
+        throw new Error(
+          await functionErrorMessage(error, data, 'Failed to start the upgrade. Please try again.'),
+        );
+      }
+      window.location.href = data.url;
     } catch (error) {
       console.error('Error creating checkout session:', error);
       toast({
-        title: "Error",
-        description: "Failed to start the upgrade. Please try again.",
+        title: "Couldn't start the upgrade",
+        description: error instanceof Error ? error.message : 'Please try again.',
         variant: "destructive",
       });
     } finally {
@@ -153,14 +160,16 @@ export const PlanBillingTab = () => {
       setIsOpeningPortal(true);
       const { data, error } = await supabase.functions.invoke('billing-portal', { body: {} });
       if (error || data?.error || !data?.url) {
-        throw new Error(data?.error || error?.message || 'Could not open billing portal');
+        throw new Error(
+          await functionErrorMessage(error, data, 'Could not open the payment settings page.'),
+        );
       }
       window.location.href = data.url;
     } catch (error) {
       console.error('Billing portal error:', error);
       toast({
-        title: "Error",
-        description: "Could not open the payment settings page. Please try again.",
+        title: "Couldn't open payment settings",
+        description: error instanceof Error ? error.message : 'Please try again.',
         variant: "destructive",
       });
       setIsOpeningPortal(false);

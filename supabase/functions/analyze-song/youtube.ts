@@ -48,11 +48,21 @@ function isTransient(reason: string): boolean {
     .test(reason);
 }
 
-// Extraction runs inside a background task, so it can't retry forever — Klangio
-// still needs its turn, and a worker that overruns is killed silently, which is
-// how analyses end up stuck on "Analyzing…".
+// "The run deadline was reached before this video finished" — the actor hitting
+// its own timeout on a slow download. Retrying inside this worker won't help
+// (one attempt already used most of the clock), but it is emphatically not the
+// user's fault, and the raw sentence was being shown to them verbatim.
+function isDownloadTooSlow(reason: string): boolean {
+  return /run deadline|deadline was reached|did not finish/i.test(reason);
+}
+
+// Extraction now has a worker to itself (Klangio runs in a second invocation),
+// but that worker still only gets ~150s of wall clock before the runtime kills
+// it. The old 260s budget could never be reached, so it silently did nothing:
+// keep this under the real ceiling so the loop stops on its own terms and the
+// caller gets a readable error instead of a worker that vanishes mid-download.
 const MAX_APIFY_ATTEMPTS = 3;
-const APIFY_BUDGET_MS = 260_000;
+const APIFY_BUDGET_MS = 130_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -284,6 +294,11 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     // HTML error page, which is no use to anyone reading it in the dashboard.
     throw new Error(
       'YouTube blocked the download this time — that usually clears in a few minutes. Please try again shortly, or upload the audio file instead.',
+    );
+  }
+  if (isDownloadTooSlow(reason)) {
+    throw new Error(
+      'This song took too long to download from YouTube — that is usually a slow source, not a problem with the song. Please try again, or upload the audio file instead.',
     );
   }
   if (/unavailable|private|removed|age|restricted/i.test(reason)) {

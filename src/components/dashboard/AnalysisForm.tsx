@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -7,8 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractYouTubeId } from "@/lib/youtube";
 import { MAX_SONG_SECONDS } from "@/lib/plans";
 import { useQueryClient } from "@tanstack/react-query";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Sparkles, Upload } from "lucide-react";
 import { logPractice } from "@/lib/practice";
+import { useSubscription } from "@/hooks/use-subscription";
+import { functionErrorMessage } from "@/lib/function-error";
+import { ToastAction } from "@/components/ui/toast";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const MIN_DURATION = 5; // seconds, Klangio API requirement
@@ -44,6 +47,12 @@ const NUDGE_AFTER_MS = 75_000;
 const GIVE_UP_AFTER_MS = 7 * 60_000;
 
 export const AnalysisForm = () => {
+  const { data: subscription } = useSubscription();
+  // The server is still the authority on credits; this only stops us taking a
+  // submission we already know will be refused, which used to leave a failed
+  // "YouTube song (fetching title...)" row in the user's history every time.
+  const outOfCredits = subscription?.credits_remaining === 0;
+
   const [url, setUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
@@ -167,7 +176,8 @@ export const AnalysisForm = () => {
     });
 
     if (error || (data && data.success === false)) {
-      const message = data?.error || error?.message || 'Could not start analysis';
+      const message = await functionErrorMessage(error, data, 'Could not start analysis');
+      const creditsExhausted = /credits/i.test(message);
       setActiveAnalysisId(null);
       setIsSubmitting(false);
       // Don't leave the record stuck in "pending" if the function never started
@@ -176,10 +186,16 @@ export const AnalysisForm = () => {
         .update({ status: 'failed', error_message: message })
         .eq('id', analysisId)
         .eq('status', 'pending');
+      queryClient.invalidateQueries({ queryKey: ['subscription'] });
       toast({
-        title: "Analysis Failed",
+        title: creditsExhausted ? "You're out of credits" : "Analysis Failed",
         description: message,
-        variant: "destructive",
+        variant: creditsExhausted ? "default" : "destructive",
+        action: creditsExhausted ? (
+          <ToastAction altText="See plans" onClick={() => navigate('/dashboard?tab=billing')}>
+            See plans
+          </ToastAction>
+        ) : undefined,
       });
       queryClient.invalidateQueries({ queryKey: ['recent-analyses'] });
       return;
@@ -377,15 +393,35 @@ export const AnalysisForm = () => {
 
   return (
     <div className="space-y-4">
+      {outOfCredits && (
+        <div className="rounded-lg border border-primary/40 bg-primary/5 p-5">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div className="space-y-3">
+              <div>
+                <p className="font-semibold">You've used all your free songs this month</p>
+                <p className="text-sm text-muted-foreground">
+                  Your credits refresh next month. Upgrade to keep analyzing now — Pro gives you
+                  15 songs a month, plus chord diagrams, ear training and practice streaks.
+                </p>
+              </div>
+              <Button asChild size="sm">
+                <Link to="/dashboard?tab=billing">See plans</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-4">
         <Input
           type="text"
           placeholder="Paste a YouTube link (e.g. https://youtube.com/watch?v=...)"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || outOfCredits}
         />
-        <Button onClick={() => analyzeUrl()} disabled={!url || isSubmitting}>
+        <Button onClick={() => analyzeUrl()} disabled={!url || isSubmitting || outOfCredits}>
           {isSubmitting ? "Analyzing..." : "Analyze"}
         </Button>
       </div>
@@ -400,7 +436,7 @@ export const AnalysisForm = () => {
         <Button
           variant="outline"
           className="w-full gap-2"
-          disabled={isSubmitting}
+          disabled={isSubmitting || outOfCredits}
           onClick={() => document.getElementById("dashboard-file-upload")?.click()}
         >
           <Upload className="h-4 w-4 shrink-0" />
@@ -419,7 +455,7 @@ export const AnalysisForm = () => {
           className="hidden"
           accept={ALLOWED_AUDIO_TYPES.join(',')}
           onChange={handleFileUpload}
-          disabled={isSubmitting}
+          disabled={isSubmitting || outOfCredits}
         />
       </div>
 

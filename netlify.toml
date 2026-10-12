@@ -1,0 +1,32 @@
+# The site had no netlify.toml at all: SPA routing was configured in the
+# Netlify UI (which works, but isn't in version control) and no security
+# headers were being sent. Both now live with the code.
+
+# Deliberately no [build] section: the build command and publish directory are
+# configured in the Netlify UI and are working. Declaring them here would
+# override that from a file nobody checks, so redirects and headers only.
+
+# Single-page app: every unmatched path has to reach index.html so React Router
+# can render it. Keep this last — Netlify applies redirects in order.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # The app holds a logged-in session and links out to Stripe checkout, so
+    # it should never be frameable by someone else's page.
+    X-Frame-Options = "DENY"
+    Content-Security-Policy = "frame-ancestors 'none'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Nothing here needs these, and denying them stops an injected script asking.
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+
+# Vite fingerprints these filenames, so they can be cached hard.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
