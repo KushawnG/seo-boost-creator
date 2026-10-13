@@ -216,6 +216,17 @@ async function processTranscription(
   }
   if (analysis.status === STATUS.completed) return;
 
+  // Say we're alive. Between here and the final write this leg touches nothing,
+  // so without this a transcription that simply takes a while is indistinguish-
+  // able from a dead worker — and the watchdog starts a second one on top of
+  // it, which doubles the load on Klangio and makes both slower. Rewriting the
+  // status refreshes updated_at via the table's trigger.
+  await supabase
+    .from('song_analysis')
+    .update({ status: STATUS.extracted })
+    .eq('id', analysisId)
+    .neq('status', STATUS.completed);
+
   try {
     let audio = blob;
     let name = filename;
