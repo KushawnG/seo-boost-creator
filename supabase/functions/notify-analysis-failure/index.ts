@@ -10,7 +10,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 // real ones are missed too.
 
 const OWNER_EMAIL = 'kushawnsingh@gmail.com';
-const SENDER = { name: 'Chord Finder AI', email: 'support@chordfinderai.com' };
+// Must be a sender Brevo has verified, or delivery depends on domain-level
+// auth that could tighten at any time. support@ is NOT verified on this
+// account; hello@chordfinderai.com is.
+const SENDER = { name: 'Chord Finder AI', email: 'hello@chordfinderai.com' };
 
 // A burst means something systemic broke; after this many in an hour we send
 // one "still failing" note instead of one mail per analysis.
