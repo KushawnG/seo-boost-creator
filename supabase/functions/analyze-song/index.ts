@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 import { analyzeAudio } from './klangio.ts';
 import { chordsInOrder, cleanTimeline, mainProgression } from './progression.ts';
-import { extractYouTubeId, fetchYouTubeAudio } from './youtube.ts';
+import { ApifyRunPending, extractYouTubeId, fetchYouTubeAudio } from './youtube.ts';
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
@@ -26,6 +26,8 @@ const STATUS = {
 
 interface AnalyzeRequest {
   analysisId: string;
+  /** Internal callers only: which leg to run. Defaults to transcription. */
+  stage?: 'extract' | 'transcribe';
 }
 
 interface StoredAudio {
@@ -63,9 +65,27 @@ Deno.serve(async (req) => {
         return jsonResponse({ success: false, error: 'Forbidden' }, 403);
       }
 
-      const { analysisId }: AnalyzeRequest = await req.json();
+      const { analysisId, stage }: AnalyzeRequest = await req.json();
       if (!analysisId) {
         return jsonResponse({ success: false, error: 'analysisId is required' }, 400);
+      }
+
+      // 'extract' resumes a download that outlived the worker that started it.
+      if (stage === 'extract') {
+        const { data: row } = await supabase
+          .from('song_analysis')
+          .select('*')
+          .eq('id', analysisId)
+          .single();
+        if (!row) return jsonResponse({ success: false, error: 'Analysis not found' }, 404);
+
+        const resuming = processExtraction(supabase, klangioApiKey, row);
+        if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime) {
+          EdgeRuntime.waitUntil(resuming);
+          return jsonResponse({ success: true, status: 'extracting' }, 202);
+        }
+        await resuming;
+        return jsonResponse({ success: true, status: 'completed' }, 200);
       }
 
       const transcribing = processTranscription(supabase, klangioApiKey, analysisId);
@@ -189,6 +209,16 @@ async function processExtraction(
     console.warn('Transcribing in the extraction worker (no handoff available):', analysis.id);
     await processTranscription(supabase, klangioApiKey, analysis.id, audio.blob, audio.filename);
   } catch (error) {
+    // The download is still running at Apify — leave the row alone so the
+    // watchdog wakes a fresh worker to carry on polling the SAME run. Failing
+    // here is what used to make a slow song unanalysable: every retry started
+    // a new download that was exactly as slow.
+    if (error instanceof ApifyRunPending) {
+      console.log('Apify run still in flight, leaving for the watchdog:', {
+        analysisId: analysis.id, runId: error.runId,
+      });
+      return;
+    }
     const message = error instanceof Error ? error.message : 'Analysis failed';
     console.error('Extraction failed:', { analysisId: analysis.id, message });
     await markFailed(supabase, analysis.id, message);
@@ -387,7 +417,17 @@ async function ensureStoredAudio(
 
   const youtubeId = extractYouTubeId(analysis.url);
   if (youtubeId) {
-    const { blob, title, duration, extension } = await fetchYouTubeAudio(youtubeId);
+    const { blob, title, duration, extension } = await fetchYouTubeAudio(youtubeId, {
+      existingRunId: analysis.apify_run_id,
+      // Persist the id the instant the run starts: if this worker is killed
+      // mid-download it is the only thing that lets the next one resume.
+      onRunStarted: async (runId) => {
+        await supabase
+          .from('song_analysis')
+          .update({ apify_run_id: runId })
+          .eq('id', analysis.id);
+      },
+    });
     const storagePath = `${analysis.user_id}/youtube-${youtubeId}.${extension}`;
     const stored = await storeAudio(supabase, analysis.id, storagePath, blob);
 

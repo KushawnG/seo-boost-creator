@@ -100,36 +100,85 @@ function isDownloadTooSlow(reason: string): boolean {
 // keep this under the real ceiling so the loop stops on its own terms and the
 // caller gets a readable error instead of a worker that vanishes mid-download.
 const MAX_APIFY_ATTEMPTS = 3;
-const APIFY_BUDGET_MS = 130_000;
+// How long this worker will wait on Apify before handing the run to the next
+// one. Deliberately well under the ~150s worker ceiling: once the run settles
+// we still have to download several MB and push it to storage, and handing a
+// live run over costs nothing now that it can be resumed.
+const APIFY_BUDGET_MS = 90_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function runApifyActor(
-  videoId: string,
-  token: string,
-  country: string,
-): Promise<{ result?: ApifyResult; reason: string }> {
-  const response = await fetch(
-    `https://api.apify.com/v2/acts/${APIFY_ACTOR}/run-sync-get-dataset-items?token=${token}&timeout=150`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        videoUrls: [`https://www.youtube.com/watch?v=${videoId}`],
-        // Datacenter proxies started getting blocked by YouTube (Aug 2026);
-        // residential costs ~cents more per download but actually works.
-        proxyConfiguration: {
-          useApifyProxy: true,
-          apifyProxyGroups: ['RESIDENTIAL'],
-          apifyProxyCountry: country,
-        },
-      }),
-    },
-  );
-  if (!response.ok) {
-    return { reason: `Apify run failed (${response.status}): ${(await response.text()).slice(0, 160)}` };
-  }
+const APIFY_POLL_MS = 3000;
 
+/** Raised when the download is genuinely still going when our time runs out.
+ *  Not a failure: the run carries on at Apify, and a later worker resumes it. */
+export class ApifyRunPending extends Error {
+  constructor(public readonly runId: string) {
+    super('The download from YouTube is still in progress');
+    this.name = 'ApifyRunPending';
+  }
+}
+
+export interface ApifyContext {
+  /** A run started by an earlier worker — poll this instead of starting over. */
+  existingRunId?: string | null;
+  /** Called the moment a run starts, so the id survives this worker dying. */
+  onRunStarted?: (runId: string) => Promise<void>;
+}
+
+/** Kick off a run and return immediately. The run outlives this worker. */
+async function startApifyRun(videoId: string, token: string, country: string): Promise<string> {
+  const response = await fetch(`https://api.apify.com/v2/acts/${APIFY_ACTOR}/runs?token=${token}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      videoUrls: [`https://www.youtube.com/watch?v=${videoId}`],
+      // Datacenter proxies started getting blocked by YouTube (Aug 2026);
+      // residential costs ~cents more per download but actually works.
+      proxyConfiguration: {
+        useApifyProxy: true,
+        apifyProxyGroups: ['RESIDENTIAL'],
+        apifyProxyCountry: country,
+      },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Apify run failed (${response.status}): ${(await response.text()).slice(0, 160)}`);
+  }
+  const started = await response.json();
+  const runId = started?.data?.id;
+  if (!runId) throw new Error('Apify did not return a run id');
+  return runId;
+}
+
+/** Wait on a run until it settles or `deadline` passes. */
+async function awaitApifyRun(
+  runId: string,
+  token: string,
+  deadline: number,
+): Promise<{ settled: 'SUCCEEDED' | 'FAILED'; status: string } | { settled: 'PENDING' }> {
+  for (;;) {
+    const response = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${token}`);
+    const status: string = response.ok ? (await response.json())?.data?.status ?? 'UNKNOWN' : 'UNKNOWN';
+
+    if (status === 'SUCCEEDED') return { settled: 'SUCCEEDED', status };
+    if (['FAILED', 'TIMED-OUT', 'TIMING-OUT', 'ABORTED', 'ABORTING'].includes(status)) {
+      return { settled: 'FAILED', status };
+    }
+    if (Date.now() > deadline) return { settled: 'PENDING' };
+    await sleep(APIFY_POLL_MS);
+  }
+}
+
+/** Pull the finished run's item and download the audio it points at. */
+async function collectApifyRun(
+  runId: string,
+  token: string,
+): Promise<{ result?: ApifyResult; reason: string }> {
+  const response = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${token}`);
+  if (!response.ok) {
+    return { reason: `Apify dataset unreadable (${response.status})` };
+  }
   const items = await response.json();
   const item = Array.isArray(items) ? items[0] : null;
   if (item?.status !== 'Success' || !item.audioFileUrl) {
@@ -154,40 +203,70 @@ async function runApifyActor(
 
 // Paid fallback for videos YouTube blocks from server IPs (which as of
 // mid-2026 is most of them). Costs cents per download, so it only runs after
-// every free client has failed. `reason` carries the last failure so callers
-// can tell users something truthful.
-async function fetchViaApify(videoId: string): Promise<{ result: ApifyResult | null; reason: string }> {
+// every free client has failed.
+//
+// Runs are started ASYNCHRONOUSLY and the id is persisted immediately. That is
+// what makes a slow download survivable: this worker only lives ~150s, but the
+// run keeps going at Apify, so when the watchdog wakes a fresh worker it polls
+// the run that has been progressing all along instead of starting a new
+// download that would be exactly as slow. Restarting was why "The run deadline
+// was reached" could never be retried out of.
+async function fetchViaApify(
+  videoId: string,
+  ctx: ApifyContext = {},
+): Promise<{ result: ApifyResult | null; reason: string }> {
   const token = Deno.env.get('APIFY_TOKEN');
   if (!token) return { result: null, reason: 'Apify is not configured' };
 
-  const startedAt = Date.now();
+  const deadline = Date.now() + APIFY_BUDGET_MS;
   let lastReason = 'Apify returned no file';
   let countryIndex = 0;
+  let runId = ctx.existingRunId ?? null;
+  if (runId) console.log('Resuming an Apify run started earlier:', runId);
 
   for (let attempt = 1; attempt <= MAX_APIFY_ATTEMPTS; attempt++) {
-    if (Date.now() - startedAt > APIFY_BUDGET_MS) {
+    if (Date.now() > deadline) {
+      // Out of time but the run is still alive — hand it to the next worker.
+      if (runId) throw new ApifyRunPending(runId);
       console.warn('Apify budget exhausted, stopping retries:', lastReason);
       break;
     }
+
     const country = PROXY_COUNTRIES[countryIndex];
     let reason: string;
     try {
-      const outcome = await runApifyActor(videoId, token, country);
-      if (outcome.result) {
-        console.log('YouTube audio fetched via Apify:', {
-          videoId,
-          country,
-          attempt,
-          bytes: outcome.result.blob.size,
-        });
-        return { result: outcome.result, reason: 'ok' };
+      if (!runId) {
+        runId = await startApifyRun(videoId, token, country);
+        console.log('Apify run started:', { videoId, country, runId, attempt });
+        // Persist before waiting: if this worker is killed mid-poll, the id is
+        // the only thing that lets the download be picked up rather than redone.
+        await ctx.onRunStarted?.(runId);
       }
-      reason = outcome.reason;
+
+      const outcome = await awaitApifyRun(runId, token, deadline);
+      if (outcome.settled === 'PENDING') throw new ApifyRunPending(runId);
+
+      if (outcome.settled === 'SUCCEEDED') {
+        const collected = await collectApifyRun(runId, token);
+        if (collected.result) {
+          console.log('YouTube audio fetched via Apify:', {
+            videoId, country, attempt, runId, bytes: collected.result.blob.size,
+          });
+          return { result: collected.result, reason: 'ok' };
+        }
+        reason = collected.reason;
+      } else {
+        reason = `Apify run ${outcome.status}`;
+      }
     } catch (error) {
+      if (error instanceof ApifyRunPending) throw error;
       reason = error instanceof Error ? error.message : String(error);
     }
+
     lastReason = reason;
     console.warn(`Apify attempt ${attempt} via ${country} failed:`, reason);
+    // That run is spent; the next attempt needs a fresh one.
+    runId = null;
 
     if (isGeoBlocked(reason)) {
       // The country was the problem — a retry there would fail identically.
@@ -195,7 +274,7 @@ async function fetchViaApify(videoId: string): Promise<{ result: ApifyResult | n
       if (countryIndex >= PROXY_COUNTRIES.length) break;
       continue;
     }
-    if (isTransient(reason)) {
+    if (isTransient(reason) || isDownloadTooSlow(reason)) {
       // Same market, new run: the point is to land on a different exit IP.
       await sleep(2000);
       continue;
@@ -224,7 +303,10 @@ async function nativeFetch(input: any, init?: RequestInit): Promise<Response> {
   return fetch(input, init);
 }
 
-export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> {
+export async function fetchYouTubeAudio(
+  videoId: string,
+  apify: ApifyContext = {},
+): Promise<YouTubeAudio> {
   // retrieve_player: false skips fetching YouTube's player JS, which is
   // rate-limited from datacenter IPs; the clients below don't need it.
   const yt = await Innertube.create({
@@ -315,11 +397,11 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   }
 
   console.warn('All direct clients failed, trying Apify fallback:', lastError?.message);
-  const { result: apify, reason } = await fetchViaApify(videoId);
-  if (apify) {
+  const { result: fetched, reason } = await fetchViaApify(videoId, apify);
+  if (fetched) {
     // Backfill metadata the blocked Innertube call couldn't provide
-    const finalTitle = title && title !== 'YouTube video' ? title : (apify.title ?? title);
-    const finalDuration = duration || (apify.duration ?? 0);
+    const finalTitle = title && title !== 'YouTube video' ? title : (fetched.title ?? title);
+    const finalDuration = duration || (fetched.duration ?? 0);
     if (finalDuration > MAX_SOURCE_SECONDS) {
       throw new Error(
         `This is ${Math.round(finalDuration / 60)} minutes long — that's longer than a song, so we can't analyze it. Please use a link to a single track.`,
@@ -329,9 +411,9 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     // Refuse a download that plainly didn't finish, rather than analysing the
     // fragment. This is transient — the actor usually returns the whole file
     // on a later attempt — so the message invites a retry.
-    if (looksTruncated(apify.blob.size, finalDuration)) {
+    if (looksTruncated(fetched.blob.size, finalDuration)) {
       console.warn('Apify returned a truncated file:', {
-        videoId, bytes: apify.blob.size, durationSec: finalDuration,
+        videoId, bytes: fetched.blob.size, durationSec: finalDuration,
       });
       throw new Error(
         'The download from YouTube came back incomplete. Please try this song again — you weren\'t charged a credit.',
@@ -341,11 +423,11 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     // Apify always hands back mp3, so a long track can be trimmed rather than
     // refused. The stored duration stays the REAL one so the app can tell the
     // user we only looked at the opening five minutes.
-    const blob = trimMp3(apify.blob, finalDuration, MAX_DURATION_SECONDS);
-    if (blob.size !== apify.blob.size) {
+    const blob = trimMp3(fetched.blob, finalDuration, MAX_DURATION_SECONDS);
+    if (blob.size !== fetched.blob.size) {
       console.log('Trimmed long source for Klangio:', {
         videoId, durationSec: finalDuration,
-        fromBytes: apify.blob.size, toBytes: blob.size,
+        fromBytes: fetched.blob.size, toBytes: blob.size,
       });
     }
     return { blob, title: finalTitle, duration: finalDuration, extension: 'mp3' };
