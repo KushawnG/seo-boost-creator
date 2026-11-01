@@ -4,6 +4,44 @@ import { Innertube } from 'npm:youtubei.js@17';
 // 300s); the slack covers metadata rounding.
 const MAX_DURATION_SECONDS = 5 * 60 + 20;
 
+// Longer songs used to be refused outright, which was the single biggest
+// remaining cause of failed analyses — a dead end for someone who had done
+// nothing wrong. We now analyze the first five minutes instead, which is
+// almost always the whole chord progression anyway. Past this length the
+// source isn't a song any more (DJ sets, full albums, hour-long mixes) and
+// isn't worth paying to download, so it is still declined.
+const MAX_SOURCE_SECONDS = 20 * 60;
+
+// Apify sometimes hands back a near-empty file — a 409-second song came back
+// as 189KB, about twelve seconds of audio, and Klangio dutifully analysed
+// those twelve seconds and returned two chords. A result like that is worse
+// than an error: it looks like the app worked and quietly tells the user the
+// wrong chords. Anything below roughly 32kbps for the claimed duration is a
+// broken download, not a quiet song.
+const MIN_BYTES_PER_SECOND = 4000;
+
+function looksTruncated(bytes: number, durationSeconds: number): boolean {
+  if (!durationSeconds || durationSeconds <= 0) return false;
+  return bytes < durationSeconds * MIN_BYTES_PER_SECOND;
+}
+
+/**
+ * Cut an mp3 down to roughly `maxSeconds` of playing time.
+ *
+ * mp3 frames are self-contained, so slicing the bytes lands at close to the
+ * same proportion of the timeline and decoders simply stop at the last whole
+ * frame. Verified against Klangio before relying on it: 40% of the bytes of a
+ * 200s file returned a clean analysis whose last chord ended at 80s.
+ *
+ * Only safe for mp3 — m4a/mp4 keeps its index in a trailing atom and a
+ * truncated file is unreadable, so callers must not trim those.
+ */
+function trimMp3(blob: Blob, duration: number, maxSeconds: number): Blob {
+  if (!duration || duration <= maxSeconds) return blob;
+  const keep = Math.floor(blob.size * (maxSeconds / duration));
+  return blob.slice(0, keep, blob.type);
+}
+
 const YOUTUBE_ID_PATTERN =
   /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/;
 
@@ -229,10 +267,12 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   }
   if (!title) title = 'YouTube video';
 
-  // duration is 0 when metadata failed — Klangio enforces its own cap then
-  if (duration > MAX_DURATION_SECONDS) {
+  // duration is 0 when metadata failed — Klangio enforces its own cap then.
+  // Anything between the five-minute cap and MAX_SOURCE_SECONDS is allowed
+  // through and trimmed after download.
+  if (duration > MAX_SOURCE_SECONDS) {
     throw new Error(
-      `This video is ${Math.ceil(duration / 60)} minutes long — songs up to 5 minutes are supported. Please use a shorter video or upload a trimmed audio file.`,
+      `This is ${Math.round(duration / 60)} minutes long — that's longer than a song, so we can't analyze it. Please use a link to a single track.`,
     );
   }
 
@@ -240,8 +280,15 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
   // most reliable as of mid-2026, the rest are fallbacks. Label-protected
   // videos may reject all of them ("login required") — nothing recoverable
   // server-side, so the error tells users to upload the file instead.
-  const clients = ['IOS', 'ANDROID', 'TV', 'MWEB'] as const;
+  // These hand back m4a, whose index lives in a trailing atom — truncating one
+  // yields an unreadable file. So for anything over the Klangio cap, skip
+  // straight to Apify, which returns mp3 that trimMp3 can shorten safely.
+  const tooLongToTrimHere = duration > MAX_DURATION_SECONDS;
+  const clients = tooLongToTrimHere ? [] : (['IOS', 'ANDROID', 'TV', 'MWEB'] as const);
   let lastError: Error | null = null;
+  if (tooLongToTrimHere) {
+    console.log('Long source — going straight to Apify for a trimmable mp3:', { videoId, duration });
+  }
 
   for (const client of clients) {
     try {
@@ -273,12 +320,35 @@ export async function fetchYouTubeAudio(videoId: string): Promise<YouTubeAudio> 
     // Backfill metadata the blocked Innertube call couldn't provide
     const finalTitle = title && title !== 'YouTube video' ? title : (apify.title ?? title);
     const finalDuration = duration || (apify.duration ?? 0);
-    if (finalDuration > MAX_DURATION_SECONDS) {
+    if (finalDuration > MAX_SOURCE_SECONDS) {
       throw new Error(
-        `This video is ${Math.ceil(finalDuration / 60)} minutes long — songs up to 5 minutes are supported. Please use a shorter video or upload a trimmed audio file.`,
+        `This is ${Math.round(finalDuration / 60)} minutes long — that's longer than a song, so we can't analyze it. Please use a link to a single track.`,
       );
     }
-    return { blob: apify.blob, title: finalTitle, duration: finalDuration, extension: 'mp3' };
+
+    // Refuse a download that plainly didn't finish, rather than analysing the
+    // fragment. This is transient — the actor usually returns the whole file
+    // on a later attempt — so the message invites a retry.
+    if (looksTruncated(apify.blob.size, finalDuration)) {
+      console.warn('Apify returned a truncated file:', {
+        videoId, bytes: apify.blob.size, durationSec: finalDuration,
+      });
+      throw new Error(
+        'The download from YouTube came back incomplete. Please try this song again — you weren\'t charged a credit.',
+      );
+    }
+
+    // Apify always hands back mp3, so a long track can be trimmed rather than
+    // refused. The stored duration stays the REAL one so the app can tell the
+    // user we only looked at the opening five minutes.
+    const blob = trimMp3(apify.blob, finalDuration, MAX_DURATION_SECONDS);
+    if (blob.size !== apify.blob.size) {
+      console.log('Trimmed long source for Klangio:', {
+        videoId, durationSec: finalDuration,
+        fromBytes: apify.blob.size, toBytes: blob.size,
+      });
+    }
+    return { blob, title: finalTitle, duration: finalDuration, extension: 'mp3' };
   }
 
   // Direct access always fails from server IPs now, so the fallback's reason is
