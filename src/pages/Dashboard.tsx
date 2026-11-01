@@ -45,7 +45,7 @@ const Dashboard = () => {
 
   const { data: subscription, isLoading: subLoading } = useSubscription();
   const plan = planFor(subscription?.plan_type);
-  const creditsRemaining = subscription?.credits_remaining ?? plan.monthlyCredits;
+  const creditsRemaining = subscription?.credits_remaining ?? plan.credits;
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email ?? null));

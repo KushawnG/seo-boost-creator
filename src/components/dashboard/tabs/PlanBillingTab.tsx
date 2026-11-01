@@ -36,14 +36,14 @@ const PREMIUM_PRICE_IDS: string[] = [PRICE_IDS.premium.monthly, PRICE_IDS.premiu
 const buildPlans = (interval: BillingInterval) => ({
   FREE: {
     title: "Free Plan",
-    price: "$0/mo",
+    price: "$0",
     priceId: "free",
     features: [
-      { icon: Music, text: "3 analyses/month" },
+      { icon: Music, text: "1 free song analysis" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Zap, text: "Last 5 analyses saved" }
     ],
-    footnote: "Renews monthly for free"
+    footnote: "One free song to try the app"
   },
   PRO: {
     title: "Pro Plan",

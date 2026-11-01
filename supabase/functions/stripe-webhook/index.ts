@@ -20,7 +20,9 @@ const PLAN_BY_PRICE: Record<string, { plan: string; credits: number }> = {
   [Deno.env.get('STRIPE_PRICE_PREMIUM_ANNUAL') ?? 'price_premium_annual']: { plan: 'premium', credits: 40 },
 };
 
-const FREE_PLAN = { plan: 'free', credits: 3 };
+// One song, once — the free tier no longer refills, so a cancelled
+// subscriber lands on a single credit rather than a monthly allowance.
+const FREE_PLAN = { plan: 'free', credits: 1 };
 
 /** Raised when an event isn't ours to act on — acknowledged, never retried. */
 class NotOurEvent extends Error {}

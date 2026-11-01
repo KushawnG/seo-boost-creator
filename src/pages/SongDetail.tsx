@@ -166,7 +166,7 @@ const SongDetail = () => {
                   </Link>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Free plan includes 3 songs/month. Guitar &amp; piano diagrams unlock with Pro or Premium.
+                  Free plan includes 1 song. Guitar &amp; piano diagrams unlock with Pro or Premium.
                 </p>
               </CardContent>
             </Card>

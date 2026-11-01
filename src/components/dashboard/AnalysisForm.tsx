@@ -399,10 +399,10 @@ export const AnalysisForm = () => {
             <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
             <div className="space-y-3">
               <div>
-                <p className="font-semibold">You've used all your free songs this month</p>
+                <p className="font-semibold">You've used your free song</p>
                 <p className="text-sm text-muted-foreground">
-                  Your credits refresh next month. Upgrade to keep analyzing now — Pro gives you
-                  15 songs a month, plus chord diagrams, ear training and practice streaks.
+                  Pro gives you 15 songs a month, plus guitar and piano chord diagrams,
+                  ear training and practice streaks — and your chord sheets stay in your history.
                 </p>
               </div>
               <Button asChild size="sm">

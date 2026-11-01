@@ -48,11 +48,11 @@ const Index = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <Card className="p-8">
               <h3 className="text-xl font-semibold mb-4">Free</h3>
-              <div className="text-4xl font-bold mb-6">$0<span className="text-lg text-muted-foreground">/month</span></div>
+              <div className="text-4xl font-bold mb-6">$0</div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center">
                   <Music className="h-5 w-5 text-primary mr-2" />
-                  <span>3 song analyses per month</span>
+                  <span>1 free song analysis</span>
                 </li>
                 <li className="flex items-center">
                   <Clock className="h-5 w-5 text-primary mr-2" />
@@ -71,7 +71,7 @@ const Index = () => {
                   <span>Last 5 analyses saved</span>
                 </li>
                 <li className="flex items-center text-muted-foreground">
-                  <span>Renews monthly for free</span>
+                  <span>No credit card needed</span>
                 </li>
               </ul>
               <Link to="/auth">

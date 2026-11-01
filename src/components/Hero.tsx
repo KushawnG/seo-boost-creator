@@ -134,7 +134,7 @@ export const Hero = () => {
             feature — your song stays unspoiled either way.)
           </p>
           <p className="text-sm font-medium text-muted-foreground">
-            🎸 3 songs free every month — no credit card needed.
+            🎸 Your first song is free — no credit card needed.
           </p>
         </div>
       </div>
