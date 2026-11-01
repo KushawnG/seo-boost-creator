@@ -1,27 +1,22 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Flame, Lock, Trophy, CalendarCheck } from "lucide-react";
-import { useSubscription } from "@/hooks/use-subscription";
+import { Flame, Trophy, CalendarCheck } from "lucide-react";
 import { computePracticeStats, localToday } from "@/lib/practice";
 import { cn } from "@/lib/utils";
 
 const selectClass =
   "h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
-// Dashboard card showing practice consistency (Pro/Premium). Free users get a
-// teaser — their activity is still logged, so history is intact on upgrade.
+// Dashboard card showing practice consistency. Open to everyone: it costs
+// nothing to run and its whole purpose is to bring people back, which made
+// paywalling it self-defeating — the users most likely to drift away were the
+// only ones who couldn't build the habit.
 export const PracticeStreakCard = () => {
   const queryClient = useQueryClient();
-  const { data: subscription, isLoading: subLoading } = useSubscription();
-  const isPaid = subscription?.plan_type === "pro" || subscription?.plan_type === "premium";
 
   const { data: days } = useQuery({
     queryKey: ["practice-log"],
-    enabled: isPaid,
     queryFn: async (): Promise<string[]> => {
       const { data, error } = await supabase
         .from("practice_log")
@@ -35,7 +30,6 @@ export const PracticeStreakCard = () => {
 
   const { data: goal } = useQuery({
     queryKey: ["practice-goal"],
-    enabled: isPaid,
     queryFn: async (): Promise<number> => {
       const { data, error } = await supabase
         .from("practice_goals")
@@ -55,37 +49,13 @@ export const PracticeStreakCard = () => {
     queryClient.invalidateQueries({ queryKey: ["practice-goal"] });
   };
 
-  // While the subscription is loading we don't know the plan — render a quiet
-  // placeholder instead of flashing the free-plan teaser at paid users.
-  if (subLoading) {
+  // Quiet placeholder until the practice log arrives, so the streak doesn't
+  // flash "0 days" at someone who has been practising.
+  if (days === undefined) {
     return (
       <Card>
         <CardContent className="p-6">
           <div className="h-24 animate-pulse rounded-md bg-muted/50" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!isPaid) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-start justify-between gap-3 p-6 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-3">
-            <Flame className="mt-0.5 h-6 w-6 text-orange-500" />
-            <div>
-              <p className="font-semibold">
-                Practice Streaks <Badge variant="secondary" className="ml-1 gap-1 align-middle text-xs"><Lock className="h-3 w-3" /> Pro</Badge>
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Build a daily habit — track your streak, set a weekly goal, and watch your
-                consistency grow.
-              </p>
-            </div>
-          </div>
-          <Link to="/dashboard?tab=billing" className="shrink-0">
-            <Button size="sm">Upgrade to track</Button>
-          </Link>
         </CardContent>
       </Card>
     );

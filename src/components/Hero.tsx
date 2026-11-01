@@ -130,8 +130,8 @@ export const Hero = () => {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Ear Training keeps the chords hidden so you can work them out by ear first. (Pro
-            feature — your song stays unspoiled either way.)
+            Ear Training keeps the chords hidden so you can work them out by ear first — your
+            song stays unspoiled either way.
           </p>
           <p className="text-sm font-medium text-muted-foreground">
             🎸 Your first song is free — no credit card needed.

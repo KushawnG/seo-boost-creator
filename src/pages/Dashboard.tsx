@@ -183,7 +183,7 @@ const Dashboard = () => {
               {NAV_ITEMS.find((n) => n.id === activeTab)?.label ?? "Dashboard"}
             </h1>
             <div className="flex w-full flex-wrap items-center gap-3 md:w-auto">
-              <EarTrainingToggle onUpsell={() => selectTab("billing")} />
+              <EarTrainingToggle />
               <div className="text-sm md:text-base">
                 Credits:{" "}
                 <span className="font-semibold">{subLoading ? "…" : creditsRemaining}</span>{" "}

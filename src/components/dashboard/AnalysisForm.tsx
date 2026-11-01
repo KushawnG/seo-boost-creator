@@ -401,8 +401,9 @@ export const AnalysisForm = () => {
               <div>
                 <p className="font-semibold">You've used your free song</p>
                 <p className="text-sm text-muted-foreground">
-                  Pro gives you 15 songs a month, plus guitar and piano chord diagrams,
-                  ear training and practice streaks — and your chord sheets stay in your history.
+                  Keep practising the songs you already have — diagrams, ear training and
+                  streaks stay open. Upgrade when you want to analyze more: Pro gives you 15
+                  songs a month and keeps your whole history.
                 </p>
               </div>
               <Button asChild size="sm">

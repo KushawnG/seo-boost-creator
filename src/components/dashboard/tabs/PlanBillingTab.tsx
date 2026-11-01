@@ -40,8 +40,10 @@ const buildPlans = (interval: BillingInterval) => ({
     priceId: "free",
     features: [
       { icon: Music, text: "1 free song analysis" },
-      { icon: Clock, text: "Songs up to 5 min" },
-      { icon: Zap, text: "Last 5 analyses saved" }
+      { icon: Zap, text: "Guitar & piano diagrams" },
+      { icon: Ear, text: "Ear Training Mode" },
+      { icon: Flame, text: "Practice streaks & goals" },
+      { icon: Clock, text: "Last 5 analyses saved" }
     ],
     footnote: "One free song to try the app"
   },
@@ -51,9 +53,7 @@ const buildPlans = (interval: BillingInterval) => ({
     priceId: PRICE_IDS.pro[interval],
     features: [
       { icon: Music, text: "15 analyses/month" },
-      { icon: Zap, text: "Guitar & piano diagrams" },
-      { icon: Ear, text: "Ear Training Mode" },
-      { icon: Flame, text: "Practice streaks & goals" },
+      { icon: Zap, text: "Everything in Free" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Music, text: "Unlimited history" }
     ],
@@ -65,9 +65,7 @@ const buildPlans = (interval: BillingInterval) => ({
     priceId: PRICE_IDS.premium[interval],
     features: [
       { icon: Music, text: "40 analyses/month" },
-      { icon: Zap, text: "Guitar & piano diagrams" },
-      { icon: Ear, text: "Ear Training Mode" },
-      { icon: Flame, text: "Practice streaks & goals" },
+      { icon: Zap, text: "Everything in Free" },
       { icon: Clock, text: "Songs up to 5 min" },
       { icon: Music, text: "Unlimited history" }
     ],

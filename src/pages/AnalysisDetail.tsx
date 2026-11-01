@@ -6,7 +6,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Guitar, Loader2, Lock, Music, Piano } from "lucide-react";
+import { ArrowLeft, Guitar, Loader2, Music, Piano } from "lucide-react";
 import { YouTubePlayer, type PlayerHandle } from "@/components/analysis/YouTubePlayer";
 import { GuitarChordDiagram } from "@/components/analysis/GuitarChordDiagram";
 import { PianoChordDiagram } from "@/components/analysis/PianoChordDiagram";
@@ -61,11 +61,15 @@ const AnalysisDetail = () => {
       isInProgress(query.state.data?.status) ? 3000 : false,
   });
 
-  // Diagrams unlock for paid plans, OR on the free demo song — a taste of the feature.
   const isDemo = !!analysis?.is_demo;
-  const diagramsUnlocked = isPaid || isDemo;
 
-  // Ear Training Mode (Pro/Premium): hide the answers and quiz the user instead.
+  // Practising a song you already have costs us nothing — no Klangio call, no
+  // Apify download — so withholding diagrams and ear training only removed the
+  // reasons to come back. 87% of users never returned for a second day. What
+  // the paid plans sell is MORE songs, which is the part that actually costs
+  // money; everything you can do with a song you already have is free.
+
+  // Ear Training Mode: hide the answers and quiz the user instead.
   // Re-arm the quiz when switching songs or flipping the mode back on.
   const [earMode] = useEarTrainingMode();
   const [earRevealed, setEarRevealed] = useState(false);
@@ -80,13 +84,6 @@ const AnalysisDetail = () => {
     () => (localStorage.getItem('chord-instrument') as Instrument) || 'off',
   );
   const selectInstrument = (next: Instrument) => {
-    if (next !== 'off' && !diagramsUnlocked) {
-      toast({
-        title: "Chord diagrams are a Pro feature",
-        description: "Upgrade to Pro or Premium to see guitar fingerings and piano keys synced with the song.",
-      });
-      return;
-    }
     setInstrument(next);
     localStorage.setItem('chord-instrument', next);
   };
@@ -224,7 +221,7 @@ const AnalysisDetail = () => {
   }
 
   // Quiz view replaces the synced player (which would spoil the answers)
-  if (earMode && isPaid && !earRevealed) {
+  if (earMode && !earRevealed) {
     return (
       <PageShell title={analysis.title}>
         <EarTrainingView
@@ -234,37 +231,6 @@ const AnalysisDetail = () => {
           audioUrl={audioUrl}
           onReveal={() => setEarRevealed(true)}
         />
-      </PageShell>
-    );
-  }
-
-  // Free user who asked for ear training (e.g. from the landing page): keep the
-  // song unspoiled and offer the upgrade — or let them reveal if they'd rather.
-  if (earMode && !isPaid && !earRevealed) {
-    return (
-      <PageShell title={analysis.title}>
-        <Card className="mx-auto max-w-xl">
-          <CardContent className="space-y-4 p-8 text-center">
-            <div className="text-4xl">🎧</div>
-            <h2 className="text-xl font-bold">This song is unspoiled</h2>
-            <p className="text-sm text-muted-foreground">
-              The chords, key and BPM are ready — but hidden, so you can work them out by ear.
-              Ear Training Mode (guess the chords, check your answers, get hints) is a Pro &amp;
-              Premium feature.
-            </p>
-            <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
-              <Link to="/dashboard?tab=billing">
-                <Button>Upgrade to play it by ear</Button>
-              </Link>
-              <Button variant="outline" onClick={() => setEarRevealed(true)}>
-                Reveal the chords instead
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Revealing only affects this song — Ear Training stays on for the rest.
-            </p>
-          </CardContent>
-        </Card>
       </PageShell>
     );
   }
@@ -351,16 +317,17 @@ const AnalysisDetail = () => {
               <span className="text-xl">🎁</span>
               <div>
                 <p className="text-sm font-semibold">
-                  This is your free demo song — chord diagrams are unlocked here.
+                  This is your free demo song — everything here is unlocked.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Tap the guitar 🎸 or piano 🎹 icon above to see the fingerings. Upgrade to Pro to
-                  unlock diagrams on every song you analyze.
+                  Tap the guitar 🎸 or piano 🎹 icon above for the fingerings, or switch on Ear
+                  Training to work the chords out yourself. Upgrade when you want to analyze
+                  more songs of your own.
                 </p>
               </div>
             </div>
             <Link to="/dashboard?tab=billing" className="shrink-0">
-              <Button size="sm">Unlock diagrams on all songs</Button>
+              <Button size="sm">Analyze more songs</Button>
             </Link>
           </CardContent>
         </Card>
@@ -410,13 +377,10 @@ const AnalysisDetail = () => {
                     variant={instrument === mode ? "secondary" : "ghost"}
                     size="icon"
                     className="relative h-9 w-9"
-                    title={mode !== 'off' && !diagramsUnlocked ? `${label} (Pro feature)` : label}
+                    title={label}
                     onClick={() => selectInstrument(mode)}
                   >
                     <Icon className="h-5 w-5" />
-                    {mode !== 'off' && !diagramsUnlocked && (
-                      <Lock className="absolute -right-0.5 -top-0.5 h-3 w-3 text-muted-foreground" />
-                    )}
                   </Button>
                 ))}
               </div>
@@ -431,7 +395,7 @@ const AnalysisDetail = () => {
             >
               {currentChord ? formatChordName(tc(currentChord[2])) : '—'}
             </div>
-            {instrument !== 'off' && diagramsUnlocked && currentChord && hasDiagram(tc(currentChord[2])) && (
+            {instrument !== 'off' && currentChord && hasDiagram(tc(currentChord[2])) && (
               instrument === 'guitar' ? (
                 <GuitarChordDiagram chord={tc(currentChord[2])} className="h-28 w-auto" />
               ) : (

@@ -166,7 +166,7 @@ const SongDetail = () => {
                   </Link>
                 </div>
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Free plan includes 1 song. Guitar &amp; piano diagrams unlock with Pro or Premium.
+                  Free plan includes 1 song analysis — with diagrams, ear training and streaks included. Pro and Premium add more songs.
                 </p>
               </CardContent>
             </Card>
