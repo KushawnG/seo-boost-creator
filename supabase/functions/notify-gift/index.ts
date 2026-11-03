@@ -58,7 +58,14 @@ Deno.serve(async (req) => {
     : '';
 
   const copy = WEEK_COPY[Number(week)] ?? { teaches: '', why: '' };
-  const song = String(a.title ?? 'a new song').replace(/\s+—\s+.*$/, '');
+  // Same tidy-up as the in-app notice, so the email and the popup name the
+  // song identically: drop the channel after the em dash, then the
+  // parenthetical video descriptors YouTube titles are full of.
+  const song = String(a.title ?? 'a new song')
+    .replace(/\s+—\s+.*$/, '')
+    .replace(/\s*[([](?:official|lyric|audio|video|remaster|hd|4k|mv|visuali[sz]er)[^)\]]*[)\]]/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 
   const html = `
     <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:16px;line-height:1.55;color:#111;max-width:520px">

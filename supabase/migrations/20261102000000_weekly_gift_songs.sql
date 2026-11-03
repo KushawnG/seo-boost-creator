@@ -113,11 +113,14 @@ BEGIN
     -- Copy the finished analysis into their account, exactly as the demo is
     -- seeded. Inserted already 'completed', so no credit is spent and no
     -- worker runs.
+    -- main_progression has to be copied explicitly: it is the one column the
+    -- app renders its own card from, and leaving it out silently delivered
+    -- songs with no progression at all.
     INSERT INTO song_analysis
       (user_id, title, chords, chords_timeline, beats, key, bpm, time_signature,
-       duration, file_path, url, youtube_id, status, gift_week)
+       duration, file_path, url, youtube_id, status, gift_week, main_progression)
     SELECT v_row.user_id, title, chords, chords_timeline, beats, key, bpm, time_signature,
-           duration, file_path, url, youtube_id, 'completed', v_row.week
+           duration, file_path, url, youtube_id, 'completed', v_row.week, main_progression
     FROM song_analysis WHERE id = v_row.analysis_id
     RETURNING id INTO v_new_id;
 

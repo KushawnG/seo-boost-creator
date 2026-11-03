@@ -7,13 +7,108 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
+      app_config: {
+        Row: {
+          key: string
+          value: string | null
+        }
+        Insert: {
+          key: string
+          value?: string | null
+        }
+        Update: {
+          key?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
+      disposable_email_domains: {
+        Row: {
+          domain: string
+        }
+        Insert: {
+          domain: string
+        }
+        Update: {
+          domain?: string
+        }
+        Relationships: []
+      }
+      email_verification_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      gift_deliveries: {
+        Row: {
+          delivered_at: string
+          seen_at: string | null
+          user_id: string
+          week: number
+        }
+        Insert: {
+          delivered_at?: string
+          seen_at?: string | null
+          user_id: string
+          week: number
+        }
+        Update: {
+          delivered_at?: string
+          seen_at?: string | null
+          user_id?: string
+          week?: number
+        }
+        Relationships: []
+      }
+      gift_songs: {
+        Row: {
+          analysis_id: string
+          label: string
+          week: number
+        }
+        Insert: {
+          analysis_id: string
+          label: string
+          week: number
+        }
+        Update: {
+          analysis_id?: string
+          label?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_songs_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "song_analysis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practice_goals: {
         Row: {
           goal_days: number
@@ -95,8 +190,72 @@ export type Database = {
         }
         Relationships: []
       }
+      signup_attribution: {
+        Row: {
+          created_at: string
+          fbclid: string | null
+          landing_page: string | null
+          referrer: string | null
+          user_id: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          created_at?: string
+          fbclid?: string | null
+          landing_page?: string | null
+          referrer?: string | null
+          user_id: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          created_at?: string
+          fbclid?: string | null
+          landing_page?: string | null
+          referrer?: string | null
+          user_id?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: []
+      }
+      signup_registry: {
+        Row: {
+          created_at: string
+          granted_credits: boolean
+          id: string
+          normalized_email: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_credits?: boolean
+          id?: string
+          normalized_email: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_credits?: boolean
+          id?: string
+          normalized_email?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       song_analysis: {
         Row: {
+          apify_run_id: string | null
           beats: Json | null
           bpm: number | null
           chords: string[] | null
@@ -106,9 +265,11 @@ export type Database = {
           duration: number | null
           error_message: string | null
           file_path: string | null
+          gift_week: number | null
           id: string
           is_demo: boolean
           key: string | null
+          main_progression: string[] | null
           status: string
           time_signature: string | null
           title: string
@@ -118,6 +279,7 @@ export type Database = {
           youtube_id: string | null
         }
         Insert: {
+          apify_run_id?: string | null
           beats?: Json | null
           bpm?: number | null
           chords?: string[] | null
@@ -127,9 +289,11 @@ export type Database = {
           duration?: number | null
           error_message?: string | null
           file_path?: string | null
+          gift_week?: number | null
           id?: string
           is_demo?: boolean
           key?: string | null
+          main_progression?: string[] | null
           status?: string
           time_signature?: string | null
           title: string
@@ -139,6 +303,7 @@ export type Database = {
           youtube_id?: string | null
         }
         Update: {
+          apify_run_id?: string | null
           beats?: Json | null
           bpm?: number | null
           chords?: string[] | null
@@ -148,9 +313,11 @@ export type Database = {
           duration?: number | null
           error_message?: string | null
           file_path?: string | null
+          gift_week?: number | null
           id?: string
           is_demo?: boolean
           key?: string | null
+          main_progression?: string[] | null
           status?: string
           time_signature?: string | null
           title?: string
@@ -223,7 +390,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      count_recent_free_ip_analyses: { Args: { p_ip: string }; Returns: number }
+      deliver_gift_songs: { Args: never; Returns: Json }
+      main_progression:
+        | { Args: { p_timeline: Json }; Returns: string[] }
+        | { Args: { p_key?: string; p_timeline: Json }; Returns: string[] }
+      mark_gift_seen: { Args: { p_week: number }; Returns: undefined }
+      normalize_email: { Args: { email: string }; Returns: string }
+      publish_song_from_analysis: { Args: { p_id: string }; Returns: undefined }
+      recover_stalled_analyses: {
+        Args: { p_give_up?: string; p_stale?: string }
+        Returns: Json
+      }
+      spell_for_key: {
+        Args: { p_chord: string; p_key: string }
+        Returns: string
+      }
+      unseen_gift: { Args: never; Returns: Json }
+      youtube_id_from_url: { Args: { p_url: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
@@ -242,12 +426,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -271,11 +455,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -296,11 +480,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -321,11 +505,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -338,11 +522,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
