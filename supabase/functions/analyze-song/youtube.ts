@@ -12,13 +12,18 @@ const MAX_DURATION_SECONDS = 5 * 60 + 20;
 // isn't worth paying to download, so it is still declined.
 const MAX_SOURCE_SECONDS = 20 * 60;
 
-// Apify sometimes hands back a near-empty file — a 409-second song came back
-// as 189KB, about twelve seconds of audio, and Klangio dutifully analysed
-// those twelve seconds and returned two chords. A result like that is worse
-// than an error: it looks like the app worked and quietly tells the user the
-// wrong chords. Anything below roughly 32kbps for the claimed duration is a
-// broken download, not a quiet song.
-const MIN_BYTES_PER_SECOND = 4000;
+// Apify sometimes hands back a partial file while still reporting the real
+// duration, and Klangio dutifully analyses the fragment: a 409s song arrived as
+// 189KB (12s, 2 chords), and "Stand By Me" arrived as 70s of a 183s song, whose
+// chord sheet then simply stopped a third of the way in. Results like that are
+// worse than an error — the app looks like it worked while telling the user
+// something wrong.
+//
+// The actor normally returns ~192kbps (measured across good downloads), so a
+// file implying less than ~80kbps for its claimed duration is a fragment, not
+// a quiet or lightly-encoded song. The first threshold here was 32kbps, which
+// was low enough to let the 73kbps "Stand By Me" fragment through.
+const MIN_BYTES_PER_SECOND = 10_000;
 
 function looksTruncated(bytes: number, durationSeconds: number): boolean {
   if (!durationSeconds || durationSeconds <= 0) return false;
