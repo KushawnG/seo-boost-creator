@@ -75,3 +75,22 @@ REVOKE ALL ON FUNCTION public.send_announcement(text, integer) FROM PUBLIC, anon
 -- YouTube songs and the player prefers the embed, but the stored audio is the
 -- fallback and it was broken. Templates now live on demo@chordfinderai.com
 -- with their audio under demo/.
+
+-- One-shot delivery of the features announcement, scheduled rather than run by
+-- hand: 19:00 UTC on 3 November (1pm US Central). The wrapper unschedules
+-- itself afterwards so the job can't linger for a year, and announcements_sent
+-- makes any repeat a no-op regardless.
+CREATE OR REPLACE FUNCTION public.run_features_announcement()
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $fn$
+BEGIN
+  PERFORM public.send_announcement('features_unlocked', 200);
+  BEGIN
+    PERFORM cron.unschedule('send-features-announcement');
+  EXCEPTION WHEN OTHERS THEN
+    RAISE LOG 'could not self-unschedule: %', SQLERRM;
+  END;
+EXCEPTION WHEN OTHERS THEN
+  RAISE LOG 'run_features_announcement failed: %', SQLERRM;
+END $fn$;
+
+REVOKE ALL ON FUNCTION public.run_features_announcement() FROM PUBLIC, anon, authenticated;
