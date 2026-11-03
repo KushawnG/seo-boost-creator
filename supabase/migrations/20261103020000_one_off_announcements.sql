@@ -66,3 +66,12 @@ BEGIN
 END $$;
 
 REVOKE ALL ON FUNCTION public.send_announcement(text, integer) FROM PUBLIC, anon, authenticated;
+
+-- Seed/gift audio lives under demo/, which the "Anyone can read demo audio"
+-- storage policy makes readable by every signed-in user. The three gift
+-- templates were originally analysed into a personal account, so their audio
+-- sat in that user's folder where only they could read it — every recipient
+-- would have been denied. Playback happened to survive because these are
+-- YouTube songs and the player prefers the embed, but the stored audio is the
+-- fallback and it was broken. Templates now live on demo@chordfinderai.com
+-- with their audio under demo/.
