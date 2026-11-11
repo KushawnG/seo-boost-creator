@@ -20,7 +20,23 @@ const PITCH_CLASS: Record<string, number> = {
   Bb: 10, B: 11, Cb: 11,
 };
 
-const NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+
+// Major scales written with sharps, by tonic pitch class: C G D A E B.
+const SHARP_SIGNATURES = new Set([0, 7, 2, 9, 4, 11]);
+
+// Follow the spelling the music already implies. Renaming "Db major" to
+// "C# lydian" changes two things at once and the spelling half isn't an
+// improvement — it is the same pitch written the way this song doesn't.
+// An accidental in the detector's own label settles it; otherwise the key
+// signature does, because B major takes F# and never Gb.
+function namesFor(reportedKey: string | null | undefined, scaleRoot: number): string[] {
+  const root = (reportedKey ?? "").trim().match(/^([A-G][b#]?)/)?.[1] ?? "";
+  if (root.includes("b")) return FLAT_NAMES;
+  if (root.includes("#")) return SHARP_NAMES;
+  return SHARP_SIGNATURES.has(scaleRoot) ? SHARP_NAMES : FLAT_NAMES;
+}
 
 // Triads of a major scale, in order, as semitone offset + quality.
 const SCALE: ReadonlyArray<readonly [number, string]> = [
@@ -64,6 +80,13 @@ export interface KeyVerdict {
   key: string;
   /** Share of playing time whose chords belong to that scale, 0-1. */
   fit: number;
+  /**
+   * Same measure, for the scale the REPORTED key implies. This is the honest
+   * test of whether the reported key is wrong, because it doesn't depend on
+   * guessing which chord is home — if a key's own scale fails to explain the
+   * chords, that key is wrong no matter what the tonic turns out to be.
+   */
+  reportedFit: number | null;
   /** Share of playing time spent on the tonic chord, 0-1. */
   tonicWeight: number;
   /** Chords that fall outside the scale, longest first — the borrowed ones. */
@@ -118,6 +141,8 @@ export function checkKey(
     const fit = inside / total;
     if (fit > bestFit + 1e-9) { bestFit = fit; bestRoot = root; }
   }
+
+  const NAMES = namesFor(reportedKey, bestRoot);
 
   // 2. What does the music rest on? Mostly the chord played longest, with a
   //    nudge for the one it opens and closes on — a song usually comes home
@@ -175,6 +200,17 @@ export function checkKey(
     reportedPc === centrePc &&
     reportedMinor === centreIsMinorish;
 
+  // How well does the reported key's OWN scale explain the chords? A key that
+  // only accounts for half the playing time is wrong on its own terms.
+  let reportedFit: number | null = null;
+  if (reportedPc !== undefined) {
+    const reportedScaleRoot = reportedMinor ? (reportedPc + 3) % 12 : reportedPc;
+    const members = new Set(SCALE.map(([step, q]) => `${(reportedScaleRoot + step) % 12}:${q}`));
+    let inside = 0;
+    for (const [label, seconds] of weight) if (members.has(label)) inside += seconds;
+    reportedFit = inside / total;
+  }
+
   // Does the reported key use the SAME seven notes we landed on? Most
   // apparent disagreements are this: C major and F lydian are the same scale
   // read from different degrees, so the only argument is over which chord is
@@ -203,5 +239,50 @@ export function checkKey(
     `(${pct(tonicWeight)} of the time)` +
     (outside.length ? `, with ${outside.slice(0, 3).join(", ")} borrowed from outside it.` : ".");
 
-  return { key, fit: bestFit, tonicWeight, outside, agrees, severity, sameScale, reason };
+  return { key, fit: bestFit, reportedFit, tonicWeight, outside, agrees, severity, sameScale, reason };
+}
+
+// How sure we have to be before overwriting what the detector said.
+//
+// Two conditions, and both matter. The new reading has to explain the chords
+// well on its own (a confident-sounding name derived from 58% of the playing
+// time is worse than the plainer label it replaces), and it has to be a clear
+// improvement rather than a rounding difference — otherwise "D major" becomes
+// "D mixolydian" over three percentage points, which helps nobody.
+const APPLY_MIN_FIT = 0.85;
+const APPLY_MIN_GAIN = 0.10;
+
+export interface KeyCorrection {
+  /** The key that should be stored. */
+  key: string;
+  /** True when that differs from what the detector reported. */
+  changed: boolean;
+  verdict: KeyVerdict | null;
+}
+
+/**
+ * The single definition of "what key should we store", shared by the analysis
+ * pipeline and the backfill so the two can never disagree.
+ *
+ * A tonic-reading difference is never applied: there the chords fit both keys
+ * equally and the only question is which chord is home, which is decided by
+ * playing time — too weak a signal to overrule the detector with.
+ */
+export function correctedKey(
+  timeline: ChordSpan[] | null | undefined,
+  reportedKey: string | null | undefined,
+): KeyCorrection {
+  const verdict = checkKey(timeline, reportedKey);
+  const fallback = (reportedKey ?? "").trim();
+  if (!verdict || !reportedKey) return { key: fallback, changed: false, verdict };
+
+  const gain = verdict.reportedFit === null ? 0 : verdict.fit - verdict.reportedFit;
+  const worthApplying =
+    (verdict.severity === "refinement" || verdict.severity === "conflict") &&
+    verdict.fit >= APPLY_MIN_FIT &&
+    gain >= APPLY_MIN_GAIN;
+
+  return worthApplying
+    ? { key: verdict.key, changed: verdict.key !== fallback, verdict }
+    : { key: fallback, changed: false, verdict };
 }

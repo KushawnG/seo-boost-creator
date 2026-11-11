@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.53.0';
 import { analyzeAudio } from './klangio.ts';
 import { chordsInOrder, cleanTimeline, mainProgression } from './progression.ts';
+import { correctedKey } from './key-check.ts';
 import { ApifyRunPending, extractYouTubeId, fetchYouTubeAudio } from './youtube.ts';
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
@@ -300,6 +301,25 @@ async function processTranscription(
       result.key,
     );
 
+    // Klangio reports the key separately from the chords and nothing used to
+    // check the two against each other. "Adorn" came back as E minor while
+    // every chord in it belonged to the D major scale — E minor would need an
+    // A minor and an F# diminished, and the song has neither. Only overrule
+    // the detector when the chords clearly say otherwise; see correctedKey.
+    const { key: finalKey, changed: keyChanged, verdict } = correctedKey(
+      result.chordsTimeline,
+      result.key,
+    );
+    if (keyChanged) {
+      console.log('Key corrected from the chord content:', {
+        analysisId,
+        reported: result.key,
+        corrected: finalKey,
+        reportedFit: verdict?.reportedFit,
+        fit: verdict?.fit,
+      });
+    }
+
     // Claim the completion. A watchdog retry can race the original worker, and
     // whoever actually flips the row is the one that spends the credit — so a
     // resumed analysis can never charge twice.
@@ -307,7 +327,7 @@ async function processTranscription(
       .from('song_analysis')
       .update({
         status: STATUS.completed,
-        key: result.key,
+        key: finalKey,
         bpm: result.bpm,
         time_signature: result.timeSignature,
         chords: chordsInOrder(cleaned).length ? chordsInOrder(cleaned) : result.chords,
