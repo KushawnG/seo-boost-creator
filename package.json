@@ -10,7 +10,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "postbuild": "node scripts/prerender-songs.mjs"
+    "postbuild": "node scripts/prerender-songs.mjs && node scripts/indexnow.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

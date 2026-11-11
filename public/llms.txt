@@ -1,0 +1,37 @@
+# Chord Finder AI
+
+> Paste a YouTube link or upload an audio file and get the song's key, BPM, time signature and chords — synced to the music as it plays, with guitar and piano chord diagrams and the main repeating progression pulled out on its own. A web app that works in any browser; nothing to install. One full analysis is free with no card.
+
+Site: https://chordfinderai.com/
+Support: support@chordfinderai.com
+
+## What it does
+
+- Analyzes any song from a YouTube link or an uploaded audio file (songs up to five minutes; longer tracks are trimmed to their opening five)
+- States the key (major or minor), BPM and time signature up front
+- Shows every chord in time with the music, with guitar and piano diagrams for each
+- Distils the main chord progression — the loop the song is built on — from the full chord list
+- Ear-training mode: hides the answers so you guess the key and chords by ear, then check
+- Practice streaks and weekly goals
+- A free, public chord library listing the key, BPM and main progression of songs already analyzed: https://chordfinderai.com/songs
+
+## Pricing (November 2026)
+
+- Free: one full analysis of any song, no card, plus four pre-analyzed songs delivered over the first week
+- Pro: $12/month or $120/year — 15 analyses a month
+- Premium: $29/month or $290/year — 40 analyses a month
+- No ads on any tier
+
+## Known limits
+
+- Chords are detected as triads: no slash chords or inversions (true of all automatic chord finders)
+- No stem separation, no native mobile app (it runs in the phone's browser)
+- Each song is analyzed on request, taking a minute or two; there is no pre-processed catalogue
+
+## Pages
+
+- [Home](https://chordfinderai.com/): what it does, pricing
+- [Chord library](https://chordfinderai.com/songs): key, BPM and main progression of analyzed songs, free to read
+- [Best chord finder apps in 2026](https://chordfinderai.com/compare/best-chord-finder-apps): Chordify, Chord ai, Moises, Yalp, Chord Finder AI and Ultimate Guitar compared by what each is best at
+- [Chordify alternatives](https://chordfinderai.com/compare/chordify-alternatives): five alternatives with prices, free tiers and platforms
+- [Chordify vs Chord ai](https://chordfinderai.com/compare/chordify-vs-chord-ai): head-to-head comparison

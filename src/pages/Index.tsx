@@ -189,6 +189,15 @@ const Index = () => {
             <BrandLogo className="h-6 w-6" />
             <span className="font-semibold">Chord Finder AI</span>
           </div>
+          {/* Plain <a> for the comparison pages: they're static HTML outside
+              the router, written for search engines and AI crawlers. Linking
+              them from here is what gets them crawled at all. */}
+          <nav className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm text-muted-foreground">
+            <Link to="/songs" className="hover:text-foreground">Chord library</Link>
+            <a href="/compare/best-chord-finder-apps" className="hover:text-foreground">Best chord finder apps</a>
+            <a href="/compare/chordify-alternatives" className="hover:text-foreground">Chordify alternatives</a>
+            <a href="/compare/chordify-vs-chord-ai" className="hover:text-foreground">Chordify vs Chord ai</a>
+          </nav>
           <p className="text-sm text-muted-foreground">
             Questions or need help?{" "}
             <a href="mailto:support@chordfinderai.com" className="font-medium text-primary underline">

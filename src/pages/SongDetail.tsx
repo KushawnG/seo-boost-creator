@@ -154,8 +154,8 @@ const SongDetail = () => {
                 </p>
                 <ul className="mt-4 space-y-2 text-sm">
                   <li className="flex items-center gap-2"><Play className="h-4 w-4 text-primary" /> Chords synced to the song as it plays</li>
-                  <li className="flex items-center gap-2"><Guitar className="h-4 w-4 text-primary" /> Guitar chord diagrams <span className="text-muted-foreground">(Pro / Premium)</span></li>
-                  <li className="flex items-center gap-2"><Piano className="h-4 w-4 text-primary" /> Piano key diagrams <span className="text-muted-foreground">(Pro / Premium)</span></li>
+                  <li className="flex items-center gap-2"><Guitar className="h-4 w-4 text-primary" /> Guitar chord diagrams — free</li>
+                  <li className="flex items-center gap-2"><Piano className="h-4 w-4 text-primary" /> Piano key diagrams — free</li>
                 </ul>
                 <div className="mt-5 flex flex-wrap gap-3">
                   <Link to="/auth?signup=true">

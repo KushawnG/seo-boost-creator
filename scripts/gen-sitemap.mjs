@@ -8,7 +8,15 @@ const ANON =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0aG5ud25nZ3Z2a3RybmdseHFqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzOTAwMDgsImV4cCI6MjA5ODk2NjAwOH0.fHnAGezWky4Xhp0g7saixpzzciIfPI_unHsSWvEnAMo";
 const SITE = "https://chordfinderai.com";
 
-const staticPaths = ["/", "/songs"];
+// The /compare pages are plain HTML in public/, outside the React app, so
+// search engines and AI crawlers that never run JavaScript can read them.
+const staticPaths = [
+  "/",
+  "/songs",
+  "/compare/best-chord-finder-apps",
+  "/compare/chordify-alternatives",
+  "/compare/chordify-vs-chord-ai",
+];
 
 async function main() {
   let slugs = [];
