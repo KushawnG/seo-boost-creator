@@ -43,6 +43,25 @@ function keyName(tonicPc: number, isMinor: boolean): string {
   return (isMinor ? MINOR_KEY_NAMES : MAJOR_KEY_NAMES)[tonicPc];
 }
 
+/**
+ * Re-spell a key without changing which key it is.
+ *
+ * Every key we store goes through this, because most of them are never
+ * corrected: when the checker agrees with the detector we keep the detector's
+ * answer, and Klangio spells minor keys from the flat side, so "Gb minor" and
+ * "Db minor" reached the database untouched. Correcting only the keys we
+ * overrode fixed a minority of them and left the app contradicting itself.
+ */
+export function normalizeKeyName(key: string | null | undefined): string {
+  const text = (key ?? "").trim();
+  const parsed = text.match(/^([A-G][b#]?)\s+(major|minor)$/i);
+  if (!parsed) return text;
+  const pc = PITCH_CLASS[parsed[1]];
+  if (pc === undefined) return text;
+  const isMinor = parsed[2].toLowerCase() === "minor";
+  return `${keyName(pc, isMinor)} ${isMinor ? "minor" : "major"}`;
+}
+
 /** Triads of a major scale: semitone offset from the tonic, and quality. */
 const SCALE: ReadonlyArray<readonly [number, string]> = [
   [0, "maj"], [2, "min"], [4, "min"], [5, "maj"], [7, "maj"], [9, "min"], [11, "dim"],
@@ -261,7 +280,9 @@ export function correctedKey(
   reportedKey: string | null | undefined,
 ): KeyCorrection {
   const verdict = checkKey(timeline, reportedKey);
-  const fallback = (reportedKey ?? "").trim();
+  // Spelled our way whether or not we end up overriding it — the detector's
+  // own spelling is never the one that gets stored.
+  const fallback = normalizeKeyName(reportedKey);
   if (!verdict || !reportedKey) return { key: fallback, changed: false, verdict };
 
   const gain = verdict.reportedFit === null ? 0 : verdict.fit - verdict.reportedFit;
