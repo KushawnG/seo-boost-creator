@@ -10,6 +10,8 @@ import { Loader2 } from "lucide-react";
 import { BrandLogo } from "@/components/BrandLogo";
 import { trackMetaEvent } from "@/lib/meta-pixel";
 import { getAttribution, clearAttribution } from "@/lib/attribution";
+import { Turnstile } from "@/components/auth/Turnstile";
+import { captchaConfigured } from "@/lib/captcha";
 
 type Mode = "signin" | "signup" | "forgot" | "recovery";
 
@@ -38,6 +40,14 @@ const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [infoMessage, setInfoMessage] = useState("");
+  // A Turnstile token is single-use: every failed attempt needs a fresh one,
+  // or the retry is rejected for reusing it.
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaNonce, setCaptchaNonce] = useState(0);
+  const resetCaptcha = () => {
+    setCaptchaToken("");
+    setCaptchaNonce((n) => n + 1);
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -64,8 +74,18 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
+      // Only sent when a site key is configured; Supabase ignores the field
+      // until captcha is switched on for the project.
+      const captcha = captchaConfigured() && captchaToken
+        ? { captchaToken }
+        : {};
+
       if (mode === "signin") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+          options: captcha,
+        });
         if (error) throw error;
         // navigation happens in the SIGNED_IN listener
       } else if (mode === "signup") {
@@ -77,7 +97,14 @@ const Auth = () => {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: attribution ?? undefined,
+            // signup_source is sent even when there is no ad attribution to
+            // attach, because it answers a different question: did this
+            // account come from the app at all? Scripted signups hit the auth
+            // endpoint directly and carry nothing. The gift drip uses it to
+            // avoid mailing accounts that were never a person — see
+            // deliver_gift_songs().
+            data: { ...(attribution ?? {}), signup_source: "web" },
+            ...captcha,
           },
         });
         if (error) throw error;
@@ -96,6 +123,7 @@ const Auth = () => {
       } else if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/auth`,
+          ...captcha,
         });
         if (error) throw error;
         setInfoMessage("Check your inbox — we sent you a password reset link.");
@@ -108,6 +136,8 @@ const Auth = () => {
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Something went wrong";
       setErrorMessage(message);
+      // The token Supabase just rejected (or consumed) can't be sent again.
+      resetCaptcha();
     } finally {
       setIsLoading(false);
     }
@@ -208,6 +238,13 @@ const Auth = () => {
                 disabled={isLoading}
               />
             </div>
+          )}
+
+          {/* Nothing renders until a site key is configured. Recovery is the
+              one flow without it: the user is already authenticated by the
+              reset link, so there is nobody to check. */}
+          {mode !== "recovery" && (
+            <Turnstile onToken={setCaptchaToken} resetKey={captchaNonce} />
           )}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
