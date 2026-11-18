@@ -2,7 +2,12 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { analyzeAudio } from './klangio.ts';
 import { chordsInOrder, cleanTimeline, mainProgression } from './progression.ts';
 import { correctedKey } from './key-check.ts';
-import { ApifyRunPending, extractYouTubeId, fetchYouTubeAudio } from './youtube.ts';
+import {
+  ApifyRunPending,
+  extractYouTubeId,
+  fetchYouTubeAudio,
+  TruncatedDownload,
+} from './youtube.ts';
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
@@ -222,7 +227,22 @@ async function processExtraction(
     }
     const message = error instanceof Error ? error.message : 'Analysis failed';
     console.error('Extraction failed:', { analysisId: analysis.id, message });
-    await markFailed(supabase, analysis.id, message);
+    // Keep the measurements behind a rejected download: the user-facing
+    // sentence is the same either way, but only these numbers can tell us
+    // whether the file really was a fragment.
+    const diagnostics = error instanceof TruncatedDownload
+      ? {
+        stage: 'download',
+        route: 'apify',
+        reason: 'looked_truncated',
+        bytes: error.bytes,
+        durationSeconds: error.durationSeconds,
+        kbps: error.kbps,
+        runId: error.runId,
+        at: new Date().toISOString(),
+      }
+      : null;
+    await markFailed(supabase, analysis.id, message, diagnostics);
     await backfillFailedTitle(supabase, analysis);
   }
 }
@@ -526,10 +546,13 @@ async function markFailed(
   supabase: SupabaseClient,
   analysisId: string,
   message: string,
+  diagnostics: Record<string, unknown> | null = null,
 ): Promise<void> {
+  const patch: Record<string, unknown> = { status: STATUS.failed, error_message: message };
+  if (diagnostics) patch.diagnostics = diagnostics;
   await supabase
     .from('song_analysis')
-    .update({ status: STATUS.failed, error_message: message })
+    .update(patch)
     .eq('id', analysisId);
 }
 

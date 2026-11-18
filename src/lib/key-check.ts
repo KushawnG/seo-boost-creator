@@ -25,8 +25,23 @@ const PITCH_CLASS: Record<string, number> = {
 
 const SHARP_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 const FLAT_NAMES  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
-// Major scales conventionally written with sharps: C G D A E B.
-const SHARP_SIGNATURES = new Set([0, 7, 2, 9, 4, 11]);
+
+// How each key is actually written down, which is NOT the same question for
+// major and minor. A minor key takes its own signature, not its relative
+// major's: the relative minor of A major is F# minor (3 sharps), and writing
+// it "Gb minor" asks for nine flats — a key that exists in theory and in no
+// real score. The same trap gives "Db minor" (8 flats) for C# minor.
+//
+// Wonderwall came back as "Gb minor" during the 2026-11-18 audit, which is the
+// kind of mistake a guitarist spots instantly and a beginner copies into a
+// search that finds nothing.
+const MAJOR_KEY_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const MINOR_KEY_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"];
+
+/** The conventional written name for a key, given its tonic and mode. */
+function keyName(tonicPc: number, isMinor: boolean): string {
+  return (isMinor ? MINOR_KEY_NAMES : MAJOR_KEY_NAMES)[tonicPc];
+}
 
 /** Triads of a major scale: semitone offset from the tonic, and quality. */
 const SCALE: ReadonlyArray<readonly [number, string]> = [
@@ -173,12 +188,14 @@ export function checkKey(
   const reportedPc = reported ? PITCH_CLASS[reported[1]] : undefined;
   const reportedMinor = reported ? reported[2].toLowerCase() === "minor" : false;
 
-  const explicit = (reportedKey ?? "").match(/^([A-G][b#]?)/)?.[1] ?? "";
-  const NAMES = explicit.includes("b") ? FLAT_NAMES
-    : explicit.includes("#") ? SHARP_NAMES
-    : SHARP_SIGNATURES.has(scaleRoot) ? SHARP_NAMES : FLAT_NAMES;
+  // The key decides its own spelling, and the chords then follow it — rather
+  // than the chords' accidentals deciding the key's, which is what produced
+  // "Gb minor". Klangio always emits sharps, so its spelling says nothing
+  // about how the key should be written.
+  const tonicName = keyName(tonicPc, isMinor);
+  const NAMES = tonicName.includes("b") ? FLAT_NAMES : SHARP_NAMES;
 
-  const key = `${NAMES[tonicPc]} ${isMinor ? "minor" : "major"}`;
+  const key = `${tonicName} ${isMinor ? "minor" : "major"}`;
 
   const members = scaleMembers(scaleRoot);
   const outside = [...weight.entries()]
@@ -215,10 +232,10 @@ export function checkKey(
 
   const pct = (n: number) => `${Math.round(n * 100)}%`;
   const reason =
-    `${pct(fit)} of the playing time fits the ${NAMES[scaleRoot]} major scale` +
+    `${pct(fit)} of the playing time fits the ${keyName(scaleRoot, false)} major scale` +
     (reportedFit !== null ? ` (the reported key explains ${pct(reportedFit)})` : "") +
-    `, and between ${NAMES[majorPc]} major and ${NAMES[minorPc]} minor the music sits on ` +
-    `${NAMES[tonicPc]} ${isMinor ? "minor" : "major"}` +
+    `, and between ${keyName(majorPc, false)} major and ${keyName(minorPc, true)} minor ` +
+    `the music sits on ${key}` +
     (outside.length ? `, with ${outside.slice(0, 3).join(", ")} borrowed.` : ".");
 
   return { key, fit, reportedFit, tonicWeight, reportedTonicWeight, outside, agrees, severity, reason };

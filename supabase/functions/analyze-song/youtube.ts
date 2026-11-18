@@ -124,6 +124,30 @@ export class ApifyRunPending extends Error {
   }
 }
 
+/** Raised when the downloaded file is too small for its claimed duration.
+ *  Carries the measurements so the caller can record them: without them there
+ *  is no way to tell a genuine fragment from a threshold that has drifted out
+ *  of date, which is exactly the hole the 2026-11-18 outage fell into. */
+export class TruncatedDownload extends Error {
+  constructor(
+    public readonly bytes: number,
+    public readonly durationSeconds: number,
+    public readonly runId: string | null,
+  ) {
+    super(
+      'The download from YouTube came back incomplete. ' +
+        "Please try this song again — you weren't charged a credit.",
+    );
+    this.name = 'TruncatedDownload';
+  }
+
+  /** Implied bitrate, which is what the guard is really judging. */
+  get kbps(): number {
+    if (!this.durationSeconds) return 0;
+    return Math.round((this.bytes * 8) / this.durationSeconds / 1000);
+  }
+}
+
 export interface ApifyContext {
   /** A run started by an earlier worker — poll this instead of starting over. */
   existingRunId?: string | null;
@@ -219,6 +243,7 @@ async function collectApifyRun(
 async function fetchViaApify(
   videoId: string,
   ctx: ApifyContext = {},
+  expectedDuration = 0,
 ): Promise<{ result: ApifyResult | null; reason: string }> {
   const token = Deno.env.get('APIFY_TOKEN');
   if (!token) return { result: null, reason: 'Apify is not configured' };
@@ -226,6 +251,9 @@ async function fetchViaApify(
   const deadline = Date.now() + APIFY_BUDGET_MS;
   let lastReason = 'Apify returned no file';
   let countryIndex = 0;
+  // Kept so that if every attempt comes back short we can still hand the
+  // caller the measurements rather than a bare "no file".
+  let lastShort: ApifyResult | null = null;
   let runId = ctx.existingRunId ?? null;
   if (runId) console.log('Resuming an Apify run started earlier:', runId);
 
@@ -254,12 +282,26 @@ async function fetchViaApify(
       if (outcome.settled === 'SUCCEEDED') {
         const collected = await collectApifyRun(runId, token);
         if (collected.result) {
-          console.log('YouTube audio fetched via Apify:', {
-            videoId, country, attempt, runId, bytes: collected.result.blob.size,
-          });
-          return { result: collected.result, reason: 'ok' };
+          // A short file is a FAILED attempt, not a result. Since the actor
+          // was rebuilt on 2026-11-08 it intermittently returns a ~1.6MB
+          // fragment whatever the song's length — three different songs came
+          // back at an identical 1,679,079 bytes during the 2026-11-18 audit.
+          // Checking this only after the loop (as it used to be) threw away
+          // the two retries still available and handed the user a dead end,
+          // even though a fresh run usually succeeds.
+          const dur = expectedDuration || collected.result.duration || 0;
+          if (looksTruncated(collected.result.blob.size, dur)) {
+            lastShort = collected.result;
+            reason = `download came back short (${collected.result.blob.size} bytes for ${Math.round(dur)}s)`;
+          } else {
+            console.log('YouTube audio fetched via Apify:', {
+              videoId, country, attempt, runId, bytes: collected.result.blob.size,
+            });
+            return { result: collected.result, reason: 'ok' };
+          }
+        } else {
+          reason = collected.reason;
         }
-        reason = collected.reason;
       } else {
         reason = `Apify run ${outcome.status}`;
       }
@@ -279,13 +321,16 @@ async function fetchViaApify(
       if (countryIndex >= PROXY_COUNTRIES.length) break;
       continue;
     }
-    if (isTransient(reason) || isDownloadTooSlow(reason)) {
+    if (isTransient(reason) || isDownloadTooSlow(reason) || lastShort) {
       // Same market, new run: the point is to land on a different exit IP.
       await sleep(2000);
       continue;
     }
     break; // genuinely unavailable — retrying changes nothing
   }
+  // Every attempt came back short: return the last one so the caller can
+  // report the actual numbers and record them.
+  if (lastShort) return { result: lastShort, reason: lastReason };
   return { result: null, reason: lastReason };
 }
 
@@ -402,7 +447,9 @@ export async function fetchYouTubeAudio(
   }
 
   console.warn('All direct clients failed, trying Apify fallback:', lastError?.message);
-  const { result: fetched, reason } = await fetchViaApify(videoId, apify);
+  // Pass the duration Innertube already knows: it's what tells a short file
+  // from a complete one, and it's more trustworthy than the actor's own.
+  const { result: fetched, reason } = await fetchViaApify(videoId, apify, duration);
   if (fetched) {
     // Backfill metadata the blocked Innertube call couldn't provide
     const finalTitle = title && title !== 'YouTube video' ? title : (fetched.title ?? title);
@@ -417,12 +464,15 @@ export async function fetchYouTubeAudio(
     // fragment. This is transient — the actor usually returns the whole file
     // on a later attempt — so the message invites a retry.
     if (looksTruncated(fetched.blob.size, finalDuration)) {
-      console.warn('Apify returned a truncated file:', {
-        videoId, bytes: fetched.blob.size, durationSec: finalDuration,
-      });
-      throw new Error(
-        'The download from YouTube came back incomplete. Please try this song again — you weren\'t charged a credit.',
+      const short = new TruncatedDownload(
+        fetched.blob.size,
+        finalDuration,
+        apify.existingRunId ?? null,
       );
+      console.warn('Apify returned a truncated file:', {
+        videoId, bytes: short.bytes, durationSec: short.durationSeconds, kbps: short.kbps,
+      });
+      throw short;
     }
 
     // Apify always hands back mp3, so a long track can be trimmed rather than
